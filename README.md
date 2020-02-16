@@ -1,6 +1,4 @@
-# SVMem  
-
-### A self-supervised learning approach for membrane curvature calculation  
+# SVMem: a self-supervised learning approach for membrane curvature calculation  
 Version 0.0.2  
 ![alt text](./image.png)
 
