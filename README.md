@@ -2,6 +2,7 @@
 
 ### A self-supervised learning approach for membrane curvature calculation  
 Version 0.0.2  
+![alt text](./image.png)
 
 ## Requirements:  
 SVMem.py uses the following packages:  
