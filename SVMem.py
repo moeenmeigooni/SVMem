@@ -270,17 +270,16 @@ def pbc_center(xyzs, box_dims):
 
 @njit
 def calculate_lipid_coms(lipids_xyz, atom_ids_per_lipid, box_dims):
-    n = lipids_xyz.shape[0]
-    d = lipids_xyz.shape[1]
-    coms = np.empty((n, d))
-    for i in range(n):
+    n_lipids = len(atom_ids_per_lipid)
+    coms = np.empty((n_lipids, 3))
+    for i in range(n_lipids):
         coms[i] = pbc_center(lipids_xyz[atom_ids_per_lipid[i]], box_dims)
     return coms
 
 @njit
 def update_disps(disps, step, box_dims, periodic):
     n = disps.shape[0]
-    d = disps.shape[1]
+    d = 3
     for i in range(n):
         for j in range(d):
             disps[i,j] += step[j]
@@ -294,11 +293,10 @@ def update_disps(disps, step, box_dims, periodic):
 @njit
 def gradient(disps, gxdists, gamma, weights):
     n = disps.shape[0]
-    d = disps.shape[1]
-    del_F = np.zeros((d))
+    del_F = np.zeros((3))
     factor = -2.*gamma
     for i in range(n):
-        for j in range(d):
+        for j in range(3):
             del_F[j] += factor * weights[i] * disps[i,j] * gxdists[i]
     return del_F
 
