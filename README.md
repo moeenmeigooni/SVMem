@@ -52,6 +52,6 @@ svmem.normal_vectors
 
 ```
 
-## Troublshooting:
+## Troubleshooting:
 Having problems running SVMem? Documentation will be limited until the release of version 0.1.  
 Until then, email me at meigoon2@illinois.edu with questions/comments/concerns, and I'll get back to you as soon as I can.
