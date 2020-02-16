@@ -7,7 +7,7 @@ Version 0.0.2
 SVMem.py uses the following packages:  
 * numpy >= 1.16.4
 * numba >= 0.45.1
-* scikit-learn >= 0.21.2
+* scikit-learn >= 0.21.2  
 * mdtraj >= 1.9.3
 
 ## Basic Usage:
