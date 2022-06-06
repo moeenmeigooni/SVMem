@@ -16,8 +16,6 @@ warnings.simplefilter("ignore")
 import mdtraj
 import nglview
 import collections
-from google.colab import output
-output.enable_custom_widget_manager()
 import copy
 import tqdm
 import itertools
