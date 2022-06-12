@@ -28,6 +28,7 @@ from svmemTorch import *
 
 """Use is for PER-FRAME..."""
 device = torch.cuda.current_device()
+device = torch.device("cpu")
 
 svt = svmemTorch()
 svt.prepare("membrane-cdl-1d.pdb")
