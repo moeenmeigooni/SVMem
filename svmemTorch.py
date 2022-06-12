@@ -118,8 +118,8 @@ class svmemTorch(sklearn.base.BaseEstimator, sklearn.base.ClusterMixin, sklearn.
             references = references.to(samples).detach()
             kernel = covar(samples, references) #(batch, natoms_, natoms) instance of LazyTensor
             # print(covar.periodic, covar.periodic)
-            kernel = kernel.evaluate() #(batch, natoms_, natoms)
             print(samples.device, references.device)
+            kernel = kernel.evaluate() #(batch, natoms_, natoms)
         else:
             assert samples.requires_grad and samples.is_leaf, "To use kernel directly, samples MUST be both LEAF and DIFFERENTIABLE..."
             kernel = samples #(batch, natoms_, natoms);;; WIP;; currently not used for def predict!!
