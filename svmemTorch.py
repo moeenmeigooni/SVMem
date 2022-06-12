@@ -70,7 +70,7 @@ class svmemTorch(sklearn.base.BaseEstimator, sklearn.base.ClusterMixin, sklearn.
         self.labels = self.get_labels #(batch, natoms)
 
     @staticmethod
-    def _to_tensor(samples: Union[torch.Tensor, np.ndarray, List], differentiable=False, device=self.device):   
+    def _to_tensor(samples: Union[torch.Tensor, np.ndarray, List], differentiable=False, device=None):   
         samples = torch.from_numpy(np.array(samples)).requires_grad_(differentiable).to(device) if isinstance(samples, (np.ndarray, list)) else samples.requires_grad_(differentiable).to(device) 
         return samples
 
@@ -111,13 +111,13 @@ class svmemTorch(sklearn.base.BaseEstimator, sklearn.base.ClusterMixin, sklearn.
                           periodic = self.periodic), 
                           outputscale_constraint=gtorch.constraints.Positive(),
                 )           #WIP!
-        references = self._to_tensor(self.references, differentiable=True) #(batch, natoms, 3)
+        references = self._to_tensor(self.references, differentiable=True, device=self.device) #(batch, natoms, 3)
         covar.to(references.device)
 
         if not use_kernel:
             assert samples.size(-1) == 3, "Must be Cartesian coordinate..."
             #Pass a precomputed kernel or not?
-            samples = self._to_tensor(samples, differentiable=True) #(batch, natoms_, 3)
+            samples = self._to_tensor(samples, differentiable=True, device=self.device) #(batch, natoms_, 3)
             references = references.to(samples).detach()
             kernel = covar(samples, references) #(batch, natoms_, natoms) instance of LazyTensor
             # print(covar.periodic, covar.periodic)
@@ -135,8 +135,8 @@ class svmemTorch(sklearn.base.BaseEstimator, sklearn.base.ClusterMixin, sklearn.
         else:
             weights, biases = self.fitted_dual_coef_weights
             assert weights.ndim == 2, "weight dimension is wrong or not computed... from list of svm.dual_coef_ modifed to torch.Tensor..."
-            weights = self._to_tensor(weights).to(references) #(batch, natoms)
-            biases = self._to_tensor(biases).to(references) ##(batch, 1)
+            weights = self._to_tensor(weights, device=self.device).to(references) #(batch, natoms)
+            biases = self._to_tensor(biases, device=self.device).to(references) ##(batch, 1)
             # ndims = kernel.ndim
             # dim_expansion = [None] * (ndims - 1)
             weights = weights[:, None, :].expand_as(kernel) #Hardcode for 3D membrane only! (WIP) #(batch, natoms_, natoms)
@@ -211,9 +211,9 @@ class svmemTorch(sklearn.base.BaseEstimator, sklearn.base.ClusterMixin, sklearn.
             sizes = self.references.size()
             weights =  self.references.new_zeros(size=torch.Size([sizes[0], sizes[1]+1])) #(batch, natoms+1)s
             svc_list = self.fitted_svm_list #fitted list of svc instances
-            indices_list = torch.nn.utils.rnn.pad_sequence( list(map(lambda inp: self._to_tensor(getattr(inp, "support_")), svc_list)), batch_first=True, padding_value=sizes[1] ).long() #NOW: (batch, Longest_svNum);; OBSOLETE: (batch, svNum) list of size batch and each batch example will have different lengths of support indices...
-            dual_coef_list = torch.nn.utils.rnn.pad_sequence( list(map(lambda inp: self._to_tensor(getattr(inp, "dual_coef_")), svc_list)), batch_first=True, padding_value=-100. ).to(weights).squeeze(dim=1) #NOW: tensor (batch, Longest_svNum); OBSOLETE: list of size batch and each batch example will have different lengths of support indices...
-            intercept_list = self._to_tensor(list(map(lambda inp: getattr(inp, "intercept_"), svc_list)) ).to(weights) #NOW: tensor (batch, 1); OBSOLETE: list of size batch and each batch example will have different lengths of support indices...
+            indices_list = torch.nn.utils.rnn.pad_sequence( list(map(lambda inp: self._to_tensor(getattr(inp, "support_"), device=self.device), svc_list)), batch_first=True, padding_value=sizes[1] ).long() #NOW: (batch, Longest_svNum);; OBSOLETE: (batch, svNum) list of size batch and each batch example will have different lengths of support indices...
+            dual_coef_list = torch.nn.utils.rnn.pad_sequence( list(map(lambda inp: self._to_tensor(getattr(inp, "dual_coef_"), device=self.device), svc_list)), batch_first=True, padding_value=-100. ).to(weights).squeeze(dim=1) #NOW: tensor (batch, Longest_svNum); OBSOLETE: list of size batch and each batch example will have different lengths of support indices...
+            intercept_list = self._to_tensor(list(map(lambda inp: getattr(inp, "intercept_"), svc_list)) , device=self.device).to(weights) #NOW: tensor (batch, 1); OBSOLETE: list of size batch and each batch example will have different lengths of support indices...
             # for b, (indices, dual_coef) in enumerate(zip(indices_list, dual_coef_list)):
             #     weights.data[b, indices] = self._to_tensor(dual_coef.reshape(-1,)).float() #(svNum,) for dual_coef_ corresponding to indices ##svNum is PER-LOOP's SV points; WIP!!
             # biases.data = self._to_tensor(intercept.reshape(-1,)).float()
@@ -234,7 +234,7 @@ class svmemTorch(sklearn.base.BaseEstimator, sklearn.base.ClusterMixin, sklearn.
         Use this during INFERENCE!"""
 
         if self.fitted:
-            samples = self._to_tensor(samples, differentiable=True) #.to(device) #(batch, natoms_, 3)
+            samples = self._to_tensor(samples, differentiable=True, device=self.device) #.to(device) #(batch, natoms_, 3)
 #             samples = samples.to(device)
             #assert samples.device.type[:4] == "cuda", "must be on GPU" #WIP 
             batch_size = samples.size(0)
@@ -384,10 +384,10 @@ class svmemTorch(sklearn.base.BaseEstimator, sklearn.base.ClusterMixin, sklearn.
             sample_test_mesh = [torch.linspace(-10, 10, N)] * 3 #for meshgrid with N fragmentations; use BROADCASTING for batch (aka nframes)!!
             X, Y, Z = torch.meshgrid(*sample_test_mesh) #torch.Tensor
             samples = torch.stack([X.ravel(), Y.ravel(), Z.ravel()], dim=-1) #_natoms_, 3; Tensor; use broadcasting soon!
-            samples = self._to_tensor(samples.expand(self.references.size(0), -1, 3), differentiable=True) #torch (batch, _natoms_, 3); use broadcasting soon!
+            samples = self._to_tensor(samples.expand(self.references.size(0), -1, 3), differentiable=True, device=self.device) #torch (batch, _natoms_, 3); use broadcasting soon!
         else:
-            assert self._to_tensor(samples).ndim == 3, "Must be 3 dim!"
-            samples = self._to_tensor(samples, differentiable=True) #numpy (batch, _natoms, 3)
+            assert self._to_tensor(samples, device=self.device).ndim == 3, "Must be 3 dim!"
+            samples = self._to_tensor(samples, differentiable=True, device=self.device) #numpy (batch, _natoms, 3)
 
         assert samples.requires_grad and samples.is_leaf, "To determine decision function, samples MUST be both LEAF and DIFFERENTIABLE..."
         svc_decision_funcs = self.predict(samples) #(batch, _natoms/_natoms_); torch.Tensor
@@ -407,7 +407,7 @@ class svmemTorch(sklearn.base.BaseEstimator, sklearn.base.ClusterMixin, sklearn.
         # distmap = torch.cdist(self.references, self.references) #BETTER than kernelized
         distmap = self._to_numpy(distmap)
         labels = np.stack([cluster.fit_predict(distance_matrix) for cluster, distance_matrix in zip(hierarchical_clusters_, distmap)], axis=0) #(batch, natoms)
-        labels = self._to_tensor(labels)
+        labels = self._to_tensor(labels, device=self.device)
         return labels
 
     @staticmethod
@@ -462,14 +462,14 @@ class svmemTorch(sklearn.base.BaseEstimator, sklearn.base.ClusterMixin, sklearn.
     @property
     def _initialize_decision_points(self, ):
         refs = self.references.data.clone()
-        initial_points = self._to_tensor(refs, differentiable=True) #(batch, natoms, 3)
+        initial_points = self._to_tensor(refs, differentiable=True, device=self.device) #(batch, natoms, 3)
         assert initial_points.is_leaf and initial_points.requires_grad, "decision boundary points must be both leaf and differentiable..."
         return initial_points
 
     @_initialize_decision_points.setter
     def _initialize_decision_points(self, values: torch.Tensor):
         assert values.ndim == 3, "values to set must be (batch, natoms, 3) size..."
-        self.references.data = self._to_tensor(values).data
+        self.references.data = self._to_tensor(values, device=self.device).data
 
     def determined_system(self, points: torch.Tensor, coeffs: torch.Tensor=torch.FloatTensor([1.,1.,1.])):
         assert points.is_leaf and points.requires_grad, "decision boundary points must be both leaf and differentiable..."
