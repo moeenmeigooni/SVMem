@@ -511,8 +511,11 @@ class svmemTorch(sklearn.base.BaseEstimator, sklearn.base.ClusterMixin, sklearn.
         print(f"points value is {points}...")
         device = torch.cuda.current_device()
         points = self._initialize_decision_points if points == None else points #differentiable
+        print(points.is_leaf, points.requires_grad)
         points = points.to(device)
-        print(device)
+        print(points.is_leaf, points.requires_grad)
+
+#         print(device)
         # optimizer = torch.optim.Adam([points], lr=0.001)
         # for _ in range(iters):
         #     optimizer.zero_grad()
