@@ -110,6 +110,7 @@ class svmemTorch(sklearn.base.BaseEstimator, sklearn.base.ClusterMixin, sklearn.
                           outputscale_constraint=gtorch.constraints.Positive(),
                 )           #WIP!
         references = self._to_tensor(self.references, differentiable=True) #(batch, natoms, 3)
+        covar.to(references.device)
 
         if not use_kernel:
             assert samples.size(-1) == 3, "Must be Cartesian coordinate..."
