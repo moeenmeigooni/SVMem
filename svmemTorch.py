@@ -231,11 +231,11 @@ class svmemTorch(sklearn.base.BaseEstimator, sklearn.base.ClusterMixin, sklearn.
 
         if self.fitted:
             samples = self._to_tensor(samples, differentiable=True).to(device) #(batch, natoms_, 3)
-            print(samples.device)
             assert samples.device.type[:4] == "cuda", "must be on GPU" #WIP 
             batch_size = samples.size(0)
             natoms = samples.size(1)
 
+            print(samples.requires_grad, samples.is_leaf)
             assert samples.requires_grad and samples.is_leaf, "This cloned leaf Tensor does is not differentiable..."
             # surface_value = self.implicitDecisionBoundary(samples,  get_surface=True, weight_type="custom") # FOR AUTOGRAD; then get kernel from x (batch, natoms_, 3) -> weighted distance (batch*natoms_, 1);  differentiable
             surface_value = self.predict(samples) # FOR AUTOGRAD; then get kernel from x (batch, natoms_, 3) -> weighted distance (batch*natoms_, 1);  differentiable
