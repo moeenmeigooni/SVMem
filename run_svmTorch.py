@@ -30,7 +30,7 @@ from svmemTorch import *
 device = torch.cuda.current_device()
 device = torch.device("cpu")
 
-svt = svmemTorch()
+svt = svmemTorch(device=device)
 svt.prepare("membrane-cdl-1d.pdb")
 svt.fit()
 
