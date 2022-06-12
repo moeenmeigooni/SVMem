@@ -52,6 +52,8 @@ class svmemTorch(sklearn.base.BaseEstimator, sklearn.base.ClusterMixin, sklearn.
     unitcell_vectors: torch.Tensor = None
     curvature: bool = None
 
+    device: torch.device = None
+        
     def prepare(self, topology: str):
         # load structure into mdtraj trajectory object
         topology = topology.split(".")[0] + ".pdb"
@@ -68,7 +70,7 @@ class svmemTorch(sklearn.base.BaseEstimator, sklearn.base.ClusterMixin, sklearn.
         self.labels = self.get_labels #(batch, natoms)
 
     @staticmethod
-    def _to_tensor(samples: Union[torch.Tensor, np.ndarray, List], differentiable=False, device=torch.cuda.current_device()):   
+    def _to_tensor(samples: Union[torch.Tensor, np.ndarray, List], differentiable=False, device=self.device):   
         samples = torch.from_numpy(np.array(samples)).requires_grad_(differentiable).to(device) if isinstance(samples, (np.ndarray, list)) else samples.requires_grad_(differentiable).to(device) 
         return samples
 
