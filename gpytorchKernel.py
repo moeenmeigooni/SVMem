@@ -22,6 +22,7 @@ import math
 from curtsies import fmtfuncs as cf
 from torch.nn.modules import padding
 import pandas as pd
+from mdtrajPBC import *
 
 # traj = lipid_head
 # box_vectors = cell
