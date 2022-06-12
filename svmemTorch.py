@@ -230,7 +230,8 @@ class svmemTorch(sklearn.base.BaseEstimator, sklearn.base.ClusterMixin, sklearn.
         Use this during INFERENCE!"""
 
         if self.fitted:
-            samples = self._to_tensor(samples, differentiable=True).to(device) #(batch, natoms_, 3)
+            #samples = self._to_tensor(samples, differentiable=True).to(device) #(batch, natoms_, 3)
+            assert samples.device.type[:4] == "cuda", "must be on GPU" #WIP 
             batch_size = samples.size(0)
             natoms = samples.size(1)
 
@@ -521,7 +522,7 @@ class svmemTorch(sklearn.base.BaseEstimator, sklearn.base.ClusterMixin, sklearn.
             loss = self.determined_system(points, coeffs=coeffs)
             loss_grads = torch.nn.functional.normalize(torch.autograd.grad(loss, points)[0], dim=-1)
             surface_values = self.predict(points) #(batch, natoms, 1)
-            grad = self.differentiate_surface(points).jac
+            grad = self.differentiate_surface(points, device=device).jac
             grad_norm = torch.nn.functional.normalize(grad, dim=-1) #(batch, natoms, 3)
             points.data -= learning_rate * (surface_values.sign().data * (grad_norm.data + loss_grads.data)) #* self.labels.data.float()
             points.data = self.map2central(cell=self.unitcell_vectors, coordinates=points.data, pbc=self.periodic) #Wrapped
