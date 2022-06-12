@@ -11,7 +11,6 @@ import warnings
 import deprecation
 from typing import *
 import sklearn.base
-import functorch
 warnings.simplefilter("ignore")
 import mdtraj
 import nglview
