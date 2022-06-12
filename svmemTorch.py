@@ -115,6 +115,7 @@ class svmemTorch(sklearn.base.BaseEstimator, sklearn.base.ClusterMixin, sklearn.
             assert samples.size(-1) == 3, "Must be Cartesian coordinate..."
             #Pass a precomputed kernel or not?
             samples = self._to_tensor(samples, differentiable=True) #(batch, natoms_, 3)
+            references = references.to(samples).detach()
             kernel = covar(samples, references) #(batch, natoms_, natoms) instance of LazyTensor
             # print(covar.periodic, covar.periodic)
             kernel = kernel.evaluate() #(batch, natoms_, natoms)
@@ -125,14 +126,13 @@ class svmemTorch(sklearn.base.BaseEstimator, sklearn.base.ClusterMixin, sklearn.
         assert weight_type in ["uniform", "custom"], "wrong keyword is chosen..."
         if weight_type == "uniform":
             #Unspecified weights for ea data point before marginalization
-            weights = torch.ones_like(kernel) #(batch, natoms_, natoms)
-            weights = self._to_tensor(weights)
+            weights = kernel.new_ones(kernel.size()).to(references) #(batch, natoms_, natoms)
             biases = weights.new_zeros(weights.size(0)) #(batch, )
         else:
             weights, biases = self.fitted_dual_coef_weights
             assert weights.ndim == 2, "weight dimension is wrong or not computed... from list of svm.dual_coef_ modifed to torch.Tensor..."
-            weights = self._to_tensor(weights) #(batch, natoms)
-            biases = self._to_tensor(biases) ##(batch, 1)
+            weights = self._to_tensor(weights).to(references) #(batch, natoms)
+            biases = self._to_tensor(biases).to(references) ##(batch, 1)
             # ndims = kernel.ndim
             # dim_expansion = [None] * (ndims - 1)
             weights = weights[:, None, :].expand_as(kernel) #Hardcode for 3D membrane only! (WIP) #(batch, natoms_, natoms)
@@ -225,12 +225,12 @@ class svmemTorch(sklearn.base.BaseEstimator, sklearn.base.ClusterMixin, sklearn.
         else:
             raise NotFittedException()
     
-    def differentiate_surface(self, samples: Union[np.ndarray, torch.Tensor], jax_like=False, return_hessian=False):
+    def differentiate_surface(self, samples: Union[np.ndarray, torch.Tensor], jax_like=False, return_hessian=False, device=None):
         """NEITHER functorch/autograd auto-creates a graph...
         Use this during INFERENCE!"""
 
         if self.fitted:
-            samples = self._to_tensor(samples, differentiable=True) #(batch, natoms_, 3)
+            samples = self._to_tensor(samples, differentiable=True).to(device) #(batch, natoms_, 3)
             batch_size = samples.size(0)
             natoms = samples.size(1)
 
@@ -506,7 +506,9 @@ class svmemTorch(sklearn.base.BaseEstimator, sklearn.base.ClusterMixin, sklearn.
 
     def optimize_decision_boundary(self, points: torch.Tensor=None, iters=50, learning_rate=0.08, coeffs=torch.tensor([1.,1.,1.])):
         print(f"points value is {points}...")
+        device = torch.cuda.current_device()
         points = self._initialize_decision_points if points == None else points #differentiable
+        points = points.to(device)
 
         # optimizer = torch.optim.Adam([points], lr=0.001)
         # for _ in range(iters):
