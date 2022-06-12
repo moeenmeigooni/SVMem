@@ -68,8 +68,8 @@ class svmemTorch(sklearn.base.BaseEstimator, sklearn.base.ClusterMixin, sklearn.
         self.labels = self.get_labels #(batch, natoms)
 
     @staticmethod
-    def _to_tensor(samples: Union[torch.Tensor, np.ndarray, List], differentiable=False):   
-        samples = torch.from_numpy(np.array(samples)).requires_grad_(differentiable) if isinstance(samples, (np.ndarray, list)) else samples.requires_grad_(differentiable) 
+    def _to_tensor(samples: Union[torch.Tensor, np.ndarray, List], differentiable=False, device=torch.cuda.current_device()):   
+        samples = torch.from_numpy(np.array(samples)).requires_grad_(differentiable).to(device) if isinstance(samples, (np.ndarray, list)) else samples.requires_grad_(differentiable).to(device) 
         return samples
 
     @staticmethod
@@ -512,8 +512,8 @@ class svmemTorch(sklearn.base.BaseEstimator, sklearn.base.ClusterMixin, sklearn.
         device = torch.cuda.current_device()
         points = self._initialize_decision_points if points == None else points #differentiable
         print(points.is_leaf, points.requires_grad)
-        points = points.data.to(device)
-        print(points.is_leaf, points.requires_grad, points.device)
+#         points = points.data.to(device)
+#         print(points.is_leaf, points.requires_grad, points.device)
 
 #         print(device)
         # optimizer = torch.optim.Adam([points], lr=0.001)
