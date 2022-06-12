@@ -27,13 +27,14 @@ from mdtrajPBC import *
 from svmemTorch import *
 
 """Use is for PER-FRAME..."""
+device = torch.cuda.current_device()
 
 svt = svmemTorch()
 svt.prepare("membrane-cdl-1d.pdb")
 svt.fit()
 
 df = svt.create_svm_decision_boundary(N=4) #INFERENCE
-grads = svt.differentiate_surface(svt._to_tensor(svt.references, differentiable=True), return_hessian=True) #INFERENCE
+grads = svt.differentiate_surface(svt._to_tensor(svt.references, differentiable=True), return_hessian=True, device=device) #INFERENCE
 jac = grads.jac.data.clone()
 hess = grads.hess.data.clone()
 hess.unique()
