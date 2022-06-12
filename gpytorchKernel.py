@@ -180,6 +180,7 @@ class RBFCustom(KernelCustom):
             or diag
             or params.get("last_dim_is_batch", False)
         ):
+            print(x1.device, x2.device, self.lengthscale.device)
             x1_ = x1.div(self.lengthscale)
             x2_ = x2.div(self.lengthscale)
             return self.covar_dist(
