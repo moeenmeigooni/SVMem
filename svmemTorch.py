@@ -230,9 +230,9 @@ class svmemTorch(sklearn.base.BaseEstimator, sklearn.base.ClusterMixin, sklearn.
         Use this during INFERENCE!"""
 
         if self.fitted:
-#             samples = self._to_tensor(samples, differentiable=True).to(device) #(batch, natoms_, 3)
-            samples = samples.to(device)
-            assert samples.device.type[:4] == "cuda", "must be on GPU" #WIP 
+            samples = self._to_tensor(samples, differentiable=True) #.to(device) #(batch, natoms_, 3)
+#             samples = samples.to(device)
+            #assert samples.device.type[:4] == "cuda", "must be on GPU" #WIP 
             batch_size = samples.size(0)
             natoms = samples.size(1)
 
