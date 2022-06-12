@@ -74,7 +74,7 @@ class svmemTorch(sklearn.base.BaseEstimator, sklearn.base.ClusterMixin, sklearn.
 
     @staticmethod
     def _to_numpy(samples: Union[torch.Tensor, np.ndarray]):   
-        samples = samples.detach().numpy() if isinstance(samples, torch.Tensor) else samples
+        samples = samples.detach().cpu().numpy() if isinstance(samples, torch.Tensor) else samples
         return samples
 
     def implicitDecisionBoundary(self, samples: Union[np.ndarray, torch.Tensor], use_kernel: bool=False, get_surface: bool=False, weight_type: str="uniform"):
