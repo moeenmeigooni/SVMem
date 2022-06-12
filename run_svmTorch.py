@@ -42,6 +42,7 @@ hess.unique()
 # svt.get_jac_and_hes.hess.shape
 # curves = svt.get_curvature
 # points = final_points
+points = svt.references
 final_points = svt(points=None, iters=50, coeffs=torch.tensor([0.,0.,0.])) #__call__
 #svt.draw_3d_plots(data=final_points, labels=torch.full((final_points.size(1),), fill_value=2), ref_jac=jac, draw_jac=True)
 # svt.draw_3d_plots(ref_jac=grads, draw_jac=True)
