@@ -2,6 +2,7 @@ import numpy as np
 from numba import njit, prange
 from sklearn.svm import SVC
 from sklearn.cluster import AgglomerativeClustering
+import jax
 
 @njit
 def ndot(a, b):
