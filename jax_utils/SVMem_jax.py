@@ -1,8 +1,11 @@
 import numpy as np
-from numba import njit, prange
+# from numba import njit, prange
 from sklearn.svm import SVC
 from sklearn.cluster import AgglomerativeClustering
 import jax
+import jax.numpy as jnp
+from jax import grad, vmap, jit as njit
+from jax import random
 
 @njit
 def ndot(a, b):
