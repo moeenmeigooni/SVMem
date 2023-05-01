@@ -4,10 +4,11 @@ from sklearn.svm import SVC
 from sklearn.cluster import AgglomerativeClustering
 import jax
 import jax.numpy as jnp
-from jax import grad, vmap, jit as njit
+from jax import grad, vmap, jit
 from jax import random
 
-@njit
+
+@jit
 def ndot(a, b):
     n = len(a)
     s = 0.
@@ -15,7 +16,7 @@ def ndot(a, b):
         s += a[i] * b[i]
     return s
 
-@njit
+@jit
 def nsign(x):
     if x > 0.:
         s = 1.
@@ -23,7 +24,7 @@ def nsign(x):
         s = -1.
     return s
 
-@njit
+@jit
 def nsign_int(x):
     if x > 0.:
         s = 1
@@ -31,7 +32,7 @@ def nsign_int(x):
         s = -1
     return s
 
-@njit
+@jit
 def vec_mag(vec):
     n = len(vec)
     l = 0.
@@ -39,7 +40,7 @@ def vec_mag(vec):
         l += (vec[i])**2.
     return np.sqrt(l)
 
-@njit
+@jit
 def vec_mags(vecs):
     n = vecs.shape[0]
     d = vecs.shape[1]
@@ -48,11 +49,11 @@ def vec_mags(vecs):
         mags[i] = vec_mag(vecs[i])
     return mags
 
-@njit
+@jit
 def vec_norm(vec):
     return vec / vec_mag(vec)
 
-@njit
+@jit
 def vec_norms(vecs):
     n = len(vecs)
     norm_vecs = np.empty_like(vecs)
@@ -60,7 +61,7 @@ def vec_norms(vecs):
         norm_vecs[i] = vec_norm(vecs[i])
     return norm_vecs
 
-@njit
+@jit
 def vec_sum(vecs):
     n = vecs.shape[0]
     d = vecs.shape[1]
@@ -70,7 +71,7 @@ def vec_sum(vecs):
             vecsum[j] += vecs[i,j]
     return vecsum
 
-@njit
+@jit
 def unravel_index(n1, n2):
     a, b = np.empty((n1, n2), dtype=np.int64), np.empty((n1, n2), dtype=np.int64)
     for i in range(n1):
@@ -78,7 +79,7 @@ def unravel_index(n1, n2):
             a[i,j], b[i,j] = i, j
     return a.ravel(),b.ravel()
 
-@njit
+@jit
 def unravel_upper_triangle_index(n):
     n_unique = (n * (n-1)) // 2
     a, b = np.empty((n_unique),dtype=np.int64), np.empty((n_unique),dtype=np.int64)
@@ -90,7 +91,7 @@ def unravel_upper_triangle_index(n):
                 k += 1
     return a, b
 
-@njit(parallel=True)
+@jit(parallel=True)
 def sym_dist_mat_(xyzs, box_dims, periodic):
     n = xyzs.shape[0]
     n_unique = (n * (n-1)) // 2
@@ -106,7 +107,7 @@ def sym_dist_mat_(xyzs, box_dims, periodic):
             dist_mat[k] += np.square(dr)
     return np.sqrt(dist_mat)
 
-@njit
+@jit
 def sym_dist_mat(xyzs, box_dims, periodic):
     n = xyzs.shape[0]
     dist_mat_flat = sym_dist_mat_(xyzs, box_dims, periodic)
@@ -120,7 +121,7 @@ def sym_dist_mat(xyzs, box_dims, periodic):
                 k += 1
     return dist_mat
 
-@njit#(parallel=True)
+@jit#(parallel=True)
 def dist_mat_(xyz1, xyz2, box_dims, periodic):
     n1 = xyz1.shape[0]
     n2 = xyz2.shape[0]
@@ -136,13 +137,13 @@ def dist_mat_(xyz1, xyz2, box_dims, periodic):
             dist_mat[k] += np.square(dr[ri])
     return np.sqrt(dist_mat)
 
-@njit
+@jit
 def dist_mat(xyz1, xyz2, box_dims, periodic):
     n1 = xyz1.shape[0]
     n2 = xyz2.shape[0]
     return dist_mat_(xyz1, xyz2, box_dims, periodic).reshape(n1, n2)
 
-@njit(parallel=True)
+@jit(parallel=True)
 def dist_mat_parallel_(xyz1, xyz2, box_dims, periodic):
     n1 = xyz1.shape[0]
     n2 = xyz2.shape[0]
@@ -158,13 +159,13 @@ def dist_mat_parallel_(xyz1, xyz2, box_dims, periodic):
             dist_mat[k] += np.square(dr)
     return np.sqrt(dist_mat)
 
-@njit
+@jit
 def dist_mat_parallel(xyz1, xyz2, box_dims, periodic):
     n1 = xyz1.shape[0]
     n2 = xyz2.shape[0]
     return dist_mat_parallel_(xyz1, xyz2, box_dims, periodic).reshape(n1, n2)
 
-@njit
+@jit
 def dist_vec(xyz, xyzs, box_dims, periodic):
     n = len(xyzs)
     ndim = len(xyz)
@@ -178,7 +179,7 @@ def dist_vec(xyz, xyzs, box_dims, periodic):
             dist_vec[i] += np.square(dr)
     return np.sqrt(dist_vec)
 
-@njit
+@jit
 def disp(xyz1, xyz2, box_dims, periodic):
     d = len(xyz1)
     disp = np.zeros((d))
@@ -192,7 +193,7 @@ def disp(xyz1, xyz2, box_dims, periodic):
         disp[ri] = dr
     return disp
 
-@njit
+@jit
 def disp_vec(xyz, xyzs, box_dims, periodic):
     n = xyzs.shape[0]
     d = xyzs.shape[1]
@@ -201,7 +202,7 @@ def disp_vec(xyz, xyzs, box_dims, periodic):
         disps[i] = disp(xyz, xyzs[i], box_dims, periodic)
     return disps        
 
-@njit
+@jit
 def gaussian_transform_vec(array, gamma):
     g_array = np.empty_like(array)
     n = array.shape[0]
@@ -209,7 +210,7 @@ def gaussian_transform_vec(array, gamma):
         g_array[i] = np.exp(-gamma * np.square(array[i]))
     return g_array
 
-@njit(parallel=True)
+@jit(parallel=True)
 def gaussian_transform_vec_parallel(array, gamma):
     g_array = np.empty_like(array)
     n = array.shape[0]
@@ -217,7 +218,7 @@ def gaussian_transform_vec_parallel(array, gamma):
         g_array[i] = np.exp(-gamma * np.square(array[i]))
     return g_array
 
-@njit(parallel=True)
+@jit(parallel=True)
 def gaussian_transform_mat_(array, gamma):
     g_array = np.empty_like(array)
     n = array.shape[0]
@@ -225,11 +226,11 @@ def gaussian_transform_mat_(array, gamma):
         g_array[i] = np.exp(-gamma * np.square(array[i]))
     return g_array
 
-@njit
+@jit
 def gaussian_transform_mat(mat, gamma):
     return gaussian_transform_mat_(mat.ravel(), gamma).reshape(mat.shape)
 
-@njit
+@jit
 def decision_function(vec, weights, intercept):
     n = vec.shape[0]
     decision = 0.
@@ -237,7 +238,7 @@ def decision_function(vec, weights, intercept):
         decision += weights[i] * vec[i]
     return decision + intercept
 
-@njit
+@jit
 def decision_function_mat(mat, weights, intercept):
     n = mat.shape[0]
     decisions = np.zeros((n))
@@ -249,11 +250,11 @@ def decision_function_mat(mat, weights, intercept):
 def predict(vec, weights, intercept):
     return np.sign(decision_function(vec, weights, intercept))
 
-@njit
+@jit
 def predict_mat(vec, weights, intercept):
     return np.sign(decision_function_mat(vec, weights, intercept))
 
-@njit
+@jit
 def pbc_center(xyzs, box_dims):
     n = xyzs.shape[0]
     d = xyzs.shape[1]
@@ -272,7 +273,7 @@ def pbc_center(xyzs, box_dims):
         center[ri] = theta * rmax / (2.*np.pi)
     return center
 
-@njit
+@jit
 def calculate_lipid_coms(lipids_xyz, atom_ids_per_lipid, box_dims):
     n_lipids = len(atom_ids_per_lipid)
     coms = np.empty((n_lipids, 3))
@@ -280,7 +281,7 @@ def calculate_lipid_coms(lipids_xyz, atom_ids_per_lipid, box_dims):
         coms[i] = pbc_center(lipids_xyz[atom_ids_per_lipid[i]], box_dims)
     return coms
 
-@njit
+@jit
 def update_disps(disps, step, box_dims, periodic):
     n = disps.shape[0]
     d = 3
@@ -294,7 +295,7 @@ def update_disps(disps, step, box_dims, periodic):
                     disps[i,j] += box_dims[j]
     return disps
 
-@njit
+@jit
 def gradient(disps, gxdists, gamma, weights):
     n = disps.shape[0]
     del_F = np.zeros((3))
@@ -304,7 +305,7 @@ def gradient(disps, gxdists, gamma, weights):
             del_F[j] += factor * weights[i] * disps[i,j] * gxdists[i]
     return del_F
 
-@njit
+@jit
 def gradient_descent(point_, support_points, box_dims, periodic, weights, intercept, gamma, learning_rate, max_iter):
     point = point_.copy()
     disps = disp_vec(point, support_points, box_dims, periodic)
@@ -324,7 +325,7 @@ def gradient_descent(point_, support_points, box_dims, periodic, weights, interc
         step = -learning_rate * nsign(d) * vec_norm(gradient(disps, gxdists, gamma, weights))
     return point, vec_norm(step), disps
 
-@njit
+@jit
 def coordinate_descent(point_, step, disps, box_dims, periodic, weights, intercept, gamma, step_init, max_iter, tol):
     point = point_.copy()
     step = step_init * step
@@ -344,7 +345,7 @@ def coordinate_descent(point_, step, disps, box_dims, periodic, weights, interce
         s = news
     return point
     
-@njit(parallel=True)
+@jit(parallel=True)
 def descend_to_boundary(points, support_points, box_dims, periodic, weights, intercept, gamma, learning_rate, max_iter, tol):
     n = points.shape[0]
     d = points.shape[1]
@@ -361,7 +362,7 @@ def descend_to_boundary(points, support_points, box_dims, periodic, weights, int
             learning_rate, max_iter, tol)
     return bounds, -1.*normal_vectors
 
-@njit
+@jit
 def analytical_derivative(point, support_points, box_dims, periodic, gamma, weights):
     d = point.shape[0]
     n = support_points.shape[0]
@@ -380,7 +381,7 @@ def analytical_derivative(point, support_points, box_dims, periodic, gamma, weig
             hess[j,i] = hess[i,j]
     return np.sum(grad,axis=0), hess
 
-@njit
+@jit
 def gaussian_curvature(grad, hess):
     n = len(grad)
     X = np.empty((n+1, n+1))
@@ -394,13 +395,13 @@ def gaussian_curvature(grad, hess):
     div = -(vec_mag(grad)**4.)
     return np.linalg.det(X) / div   
 
-@njit
+@jit
 def mean_curvature(grad, hess):
     grad_mag = vec_mag(grad)
     div = 2. * (grad_mag**3.)
     return ((grad @ hess @ grad.T) + (-(grad_mag**2.) * np.trace(hess))) / div
 
-@njit
+@jit
 def curvatures(points, support_points, box_dims, periodic, gamma, weights):
     n = points.shape[0]
     mean_curvatures = np.zeros((n))
