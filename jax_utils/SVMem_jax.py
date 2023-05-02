@@ -1,5 +1,5 @@
 import numpy as np
-# from numba import njit, prange
+from numba import njit, prange
 from sklearn.svm import SVC
 from sklearn.cluster import AgglomerativeClustering
 import jax
@@ -91,7 +91,7 @@ def unravel_upper_triangle_index(n):
                 k += 1
     return a, b
 
-@jit(parallel=True)
+@njit(parallel=True)
 def sym_dist_mat_(xyzs, box_dims, periodic):
     n = xyzs.shape[0]
     n_unique = (n * (n-1)) // 2
@@ -143,7 +143,7 @@ def dist_mat(xyz1, xyz2, box_dims, periodic):
     n2 = xyz2.shape[0]
     return dist_mat_(xyz1, xyz2, box_dims, periodic).reshape(n1, n2)
 
-@jit(parallel=True)
+@njit(parallel=True)
 def dist_mat_parallel_(xyz1, xyz2, box_dims, periodic):
     n1 = xyz1.shape[0]
     n2 = xyz2.shape[0]
@@ -165,7 +165,7 @@ def dist_mat_parallel(xyz1, xyz2, box_dims, periodic):
     n2 = xyz2.shape[0]
     return dist_mat_parallel_(xyz1, xyz2, box_dims, periodic).reshape(n1, n2)
 
-@jit
+@njit(parallel=True)
 def dist_vec(xyz, xyzs, box_dims, periodic):
     n = len(xyzs)
     ndim = len(xyz)
@@ -210,7 +210,7 @@ def gaussian_transform_vec(array, gamma):
         g_array[i] = np.exp(-gamma * np.square(array[i]))
     return g_array
 
-@jit(parallel=True)
+@njit(parallel=True)
 def gaussian_transform_vec_parallel(array, gamma):
     g_array = np.empty_like(array)
     n = array.shape[0]
@@ -218,7 +218,7 @@ def gaussian_transform_vec_parallel(array, gamma):
         g_array[i] = np.exp(-gamma * np.square(array[i]))
     return g_array
 
-@jit(parallel=True)
+@njit(parallel=True)
 def gaussian_transform_mat_(array, gamma):
     g_array = np.empty_like(array)
     n = array.shape[0]
@@ -254,7 +254,7 @@ def predict(vec, weights, intercept):
 def predict_mat(vec, weights, intercept):
     return np.sign(decision_function_mat(vec, weights, intercept))
 
-@jit
+@njit(parallel=True)
 def pbc_center(xyzs, box_dims):
     n = xyzs.shape[0]
     d = xyzs.shape[1]
@@ -345,7 +345,7 @@ def coordinate_descent(point_, step, disps, box_dims, periodic, weights, interce
         s = news
     return point
     
-@jit(parallel=True)
+@njit(parallel=True)
 def descend_to_boundary(points, support_points, box_dims, periodic, weights, intercept, gamma, learning_rate, max_iter, tol):
     n = points.shape[0]
     d = points.shape[1]
@@ -401,7 +401,7 @@ def mean_curvature(grad, hess):
     div = 2. * (grad_mag**3.)
     return ((grad @ hess @ grad.T) + (-(grad_mag**2.) * np.trace(hess))) / div
 
-@jit
+@njit(parallel=True)
 def curvatures(points, support_points, box_dims, periodic, gamma, weights):
     n = points.shape[0]
     mean_curvatures = np.zeros((n))
