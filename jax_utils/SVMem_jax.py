@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 from jax import grad, vmap, jit
 from jax import random
-import os, sys, argpars
+import os, sys, argparser
 from main import get_args
 roots = pathlib.Path(__file__).parent.parent
 sys.path.append(roots)
