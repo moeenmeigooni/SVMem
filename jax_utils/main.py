@@ -5,10 +5,10 @@ import pathlib
 def get_args():
     parser = argparse.ArgumentParser()
     
-    ROOT = pathlib.Path(__file__).parent #jax_utils directory
+    ROOT = pathlib.Path(__file__).parent.parent #jax_utils directory
                         
     #Directories
-    parser.add_argument('--data_dir', type=str, default=str(ROOT.parent), help="SVMem PDBs!") 
+    parser.add_argument('--data_dir', type=str, default=str(ROOT), help="SVMem PDBs!") 
     parser.add_argument('--save_dir', type=str, default="/Scr/hyunpark-new/Protein-TDA/pickled_indiv/")  
     parser.add_argument('--load_ckpt_path', type=str, default="/Scr/hyunpark-new/Protein-TDA/saved")
 
@@ -17,8 +17,8 @@ def get_args():
     parser.add_argument('--pdb', type=str, default=None)  
     parser.add_argument('--last', type=int, default=200) 
     parser.add_argument('--trajs', default=None, nargs="*") 
-    parser.add_argument('--atom_selection', type=str, default="backbone")  
-    parser.add_argument('--head_selection', type=str, default="backbone")  
+    parser.add_argument('--atom_selection', type=str, default="not name W WF NA CL")  
+    parser.add_argument('--head_selection', type=str, default="name PO4")  
 
     #PH utils
     parser.add_argument('--maxdim', type=int, default=1)  
