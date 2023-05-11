@@ -1,15 +1,16 @@
 import argparse
+import os
+import pathlib
 
 def get_args():
     parser = argparse.ArgumentParser()
     
+    ROOT = os.path.join(pathlib.Path(__file__).parent
+                        
     #Directories
-    parser.add_argument('--data_dir', type=str, default="/Scr/hyunpark/Monster/vaegan_md_gitlab/data", help="DEPRECATED!") 
+    parser.add_argument('--data_dir', type=str, default=str(ROOT.parent), help="SVMem PDBs!") 
     parser.add_argument('--save_dir', type=str, default="/Scr/hyunpark-new/Protein-TDA/pickled_indiv/")  
     parser.add_argument('--load_ckpt_path', type=str, default="/Scr/hyunpark-new/Protein-TDA/saved")
-    parser.add_argument('--filename', type=str, default="dppc.pickle")  
-    parser.add_argument('--pdb_database', type=str, default="/Scr/arango/Sobolev-Hyun/2-MembTempredict/testing/") 
-    parser.add_argument('--search_temp', default=123, help="e.g. keyword for T.123 directory") 
 
     #MDAnalysis utils
     parser.add_argument('--psf', type=str, default=None)  
