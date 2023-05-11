@@ -528,7 +528,7 @@ if __name__ == "__main__":
     args = get_args()
     
     # load structure into mdtraj trajectory object
-    trajectory = md.load('membrane.pdb') 
+    trajectory = md.load(os.path.join(args.data_dir, 'membrane.pdb')) 
 
     # remove water, ions
     lipid = trajectory.atom_slice(trajectory.top.select('not name W WF NA CL'))
