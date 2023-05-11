@@ -5,7 +5,7 @@ import pathlib
 def get_args():
     parser = argparse.ArgumentParser()
     
-    ROOT = os.path.join(pathlib.Path(__file__).parent
+    ROOT = pathlib.Path(__file__).parent #jax_utils directory
                         
     #Directories
     parser.add_argument('--data_dir', type=str, default=str(ROOT.parent), help="SVMem PDBs!") 
