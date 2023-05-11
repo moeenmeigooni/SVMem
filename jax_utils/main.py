@@ -55,8 +55,6 @@ def get_args():
     parser.add_argument('--gpu', action='store_true')
     parser.add_argument('--shard', action='store_true')
     parser.add_argument('--loss', choices=["mse", "mae", "smooth", "hybrid", "distill"], default="hybrid")
-    parser.add_argument('--ce_weights', nargs="*", default=[1]*TEMP_RANGES[2], type=float, help="CE weights for class")
-    parser.add_argument('--ce_re_ratio', nargs=2, default=[1., 1.], type=float, help="CE and Reg loss weights")
 
     #Model utils
     parser.add_argument('--backbone', type=str, default='vit', choices=["mpnn", "vit", "swin", "swinv2", "convnext", "restv2", "clip_resnet"])
