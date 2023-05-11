@@ -8,9 +8,9 @@ import jax.numpy as jnp
 from jax import grad, vmap, jit
 from jax import random
 import os, sys, argparse
-from main import get_args
 roots = pathlib.Path(__file__).parent.parent
 sys.path.append(roots)
+from jax_utils.main import get_args
 from SVMem import SVMem
 
 @jit
