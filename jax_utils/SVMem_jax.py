@@ -8,6 +8,7 @@ import jax.numpy as jnp
 from jax import grad, vmap, jit
 from jax import random
 import os, sys, argpars
+from main import get_args
 
 @jit
 def ndot(a, b):
@@ -524,6 +525,8 @@ class SVMem(object):
 
 
 if __name__ == "__main__":
+    args = get_args()
+    
     # load structure into mdtraj trajectory object
     trajectory = md.load('membrane.pdb') 
 
