@@ -14,7 +14,7 @@ def get_args():
 
     #MDAnalysis utils
     parser.add_argument('--psf', type=str, default=None)  
-    parser.add_argument('--pdb', type=str, default=None)  
+    parser.add_argument('--pdb', type=str, default='membrane-cdl-1d.pdb')  
     parser.add_argument('--last', type=int, default=200) 
     parser.add_argument('--trajs', default=None, nargs="*") 
     parser.add_argument('--atom_selection', type=str, default="not name W WF NA CL")  
