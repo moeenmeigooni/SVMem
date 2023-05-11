@@ -18,6 +18,7 @@ def get_args():
     parser.add_argument('--last', type=int, default=200) 
     parser.add_argument('--trajs', default=None, nargs="*") 
     parser.add_argument('--atom_selection', type=str, default="backbone")  
+    parser.add_argument('--head_selection', type=str, default="backbone")  
 
     #PH utils
     parser.add_argument('--maxdim', type=int, default=1)  
