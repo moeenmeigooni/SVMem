@@ -531,13 +531,13 @@ if __name__ == "__main__":
     args = get_args()
     
     # load structure into mdtraj trajectory object
-    trajectory = md.load(os.path.join(args.data_dir, 'membrane.pdb')) 
+    trajectory = md.load(os.path.join(args.data_dir, args.pdb)) 
 
     # remove water, ions
-    lipid = trajectory.atom_slice(trajectory.top.select('not name W WF NA CL'))
+    lipid = trajectory.atom_slice(trajectory.top.select(args.atom_selection)) #'not name W WF NA CL'
 
     # define selection for training set
-    head_selection_text = 'name PO4' 
+    head_selection_text = args.head_selection #'name PO4' 
     head_selection = lipid.top.select(head_selection_text)
 
     # define periodicity of system in x,y,z directions
@@ -559,6 +559,4 @@ if __name__ == "__main__":
     svmem.calculate_curvature(frames='all')
 
     # curvature and normal vectors are stored in the svmem object
-    svmem.mean_curvature
-    svmem.gaussian_curvature
-    svmem.normal_vectors
+    print(svmem.mean_curvature, svmem.gaussian_curvature, svmem.normal_vectors)
