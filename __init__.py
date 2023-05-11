@@ -1,1 +1,1 @@
-from jax_utils import SVMem
+from jax_utils.SVMem_jax import SVMem
