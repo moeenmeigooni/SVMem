@@ -544,10 +544,10 @@ if __name__ == "__main__":
     head_selection = lipid.top.select(head_selection_text)
 
     # define periodicity of system in x,y,z directions
-    periodic = jnp.array([True, True, False]) 
+    periodic = np.array([True, True, False]) 
 
     # get indices of each lipid, required for COM calculation
-    atom_ids_per_lipid = [jnp.array([atom.index for atom in residue.atoms]) for residue in lipid.top.residues] 
+    atom_ids_per_lipid = [np.array([atom.index for atom in residue.atoms]) for residue in lipid.top.residues] 
 
     # define gamma, hyperparameter used for RBF kernel 
     gamma = 0.1 
