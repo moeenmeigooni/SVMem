@@ -1,3 +1,4 @@
+import warnings
 import numpy as np
 import mdtraj as md
 from numba import njit, prange
@@ -12,6 +13,8 @@ roots = pathlib.Path(__file__).parent.parent
 sys.path.append(roots)
 from jax_utils.main import get_args
 from SVMem import SVMem
+
+warnings.simplefilter('ignore')
 
 @jit
 def ndot(a, b):
