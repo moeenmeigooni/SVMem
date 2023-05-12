@@ -181,6 +181,10 @@ class MDtrajTorch():
         gamma : scalar or np.ndarray
             angle between vectors **a** and **b**, in degrees.
         """
+        
+        """Also look    
+        https://github.com/materialsproject/pymatgen/blob/b789d74639aa851d7e5ee427a765d9fd5a8d1079/pymatgen/core/lattice.py#L311
+        """
         if not a.shape == b.shape == c.shape:
             raise TypeError('Shape is messed up.')
         if not a.shape[-1] == 3:
@@ -303,6 +307,32 @@ class MDtrajTorch():
         out = torch.atleast_3d(outs)   
         return out
 
+def pairwise_distance_pbc(df1, df2, M):
+    #argonne_gnn_gitlab/plotlyMOF.py
+    needed_cols = ["_atom_site_label", "_atom_site_type_symbol", 
+                   "_atom_site_fract_x", "_atom_site_fract_y", "_atom_site_fract_z"]
+    xyz_cols = ["_atom_site_fract_x", "_atom_site_fract_y", "_atom_site_fract_z"]
+    site_col = "_atom_site_label"
+    np1_expand = df1.loc[:, needed_cols].to_numpy().repeat(len(df2), axis=0)
+    np2_expand = np.tile(df2.loc[:, needed_cols].to_numpy(), (len(df1), 1))
+    df1_expand = pd.DataFrame(np1_expand, columns=needed_cols)
+    df2_expand = pd.DataFrame(np2_expand, columns=needed_cols)
+    dxdydz = df1_expand.loc[:, xyz_cols] - df2_expand.loc[:, xyz_cols]
+    dxdydz[dxdydz>0.5] -= 1
+    dxdydz[dxdydz<-0.5] += 1
+    dist2 = ((dxdydz @ M) * (dxdydz @ M)).sum(axis=1)
+    sub_df = pd.DataFrame(np.array([df1_expand.loc[:, site_col].to_list(), 
+                                    df2_expand.loc[:, site_col].to_list(), 
+                                    dist2.to_list()]).T, 
+                          columns=["A", "B", "dist2"]).astype({"A": str, 
+                                                               "B": str, 
+                                                               "dist2": float})
+    sub_df = sub_df.sort_values(by="dist2").reset_index(drop=True)
+    return sub_df    
+    
+
+    
+    
 """
 trajectory = mdtraj.load('membrane-cdl-1d.pdb') 
 head_selection_text = 'name PO4' 
