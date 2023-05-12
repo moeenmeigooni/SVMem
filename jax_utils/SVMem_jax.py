@@ -580,7 +580,7 @@ if __name__ == "__main__":
     periodic = jnp.array(periodic)
     box_dims=jnp.array([4,3,5])
     xyzs = jnp.array(np.random.normal(size=(20,3)))
-    sym_dist_mat_(xyzx, box_dims, periodic)       
+    sym_dist_mat_(xyzs, box_dims, periodic)       
     
     
     
