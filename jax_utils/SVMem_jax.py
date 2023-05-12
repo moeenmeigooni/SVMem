@@ -126,12 +126,15 @@ def sym_dist_mat_(xyzs, box_dims, periodic):
     for k in prange(n_unique): #n_unique: upper triangle of pairwise dist
         for ri in prange(ndim): #ndim: 3 (xyz)
             dr = jnp.abs(xyzs[i[k],ri] - xyzs[j[k],ri])
-            if periodic[ri] == True:
-                while (dr >  (box_dims[ri]*0.5)):
-                    dr -= box_dims[ri]
-#                 cond_fun = lambda dr, ri, box_dims: dr >  (box_dims[ri]*0.5)
-#                 body_fun = lambda dr, ri, box_dims: dr -= box_dims[ri]
-#                 jax.lax.while_loop(cond_fun=cond_fun, body_fun=body_fun, init_val=dr)
+#             if periodic[ri] == True:
+#                 while (dr >  (box_dims[ri]*0.5)):
+#                     dr -= box_dims[ri]
+            def while_func(dr):
+                cond_fun = lambda dr : dr >  (box_dims[ri]*0.5)
+                body_fun = lambda dr : dr -= box_dims[ri]
+                dr = jax.lax.while_loop(cond_fun=cond_fun, body_fun=body_fun, init_val=dr)
+                return dr
+            dr = jax.lax.cond(pred=periodic[ri], true_fun=while_func, false_fun=lambda dr: dr, operand=dr)
             dist_mat.at[k].add(jnp.square(dr))
     return jnp.sqrt(dist_mat)
 
