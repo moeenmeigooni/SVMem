@@ -112,7 +112,7 @@ def unravel_upper_triangle_index(n):
 #                 a = a.at[k].set(i)
 #                 b = b.at[k].set(j)
 #                 k += 1
-            (a, b, k) = jax.lax.cond(pred=(i < j), true_fun=lambda a, k, i, j: (a.at[k].set(i), b = b.at[k].set(j), k), false_fun=lambda a, k, i, j: (a, b, k), operand=x).item() #.item() for scalar;; necessary for differrentiation!
+            (a, b, k) = jax.lax.cond(pred=(i < j), true_fun=lambda a, k, i, j: (a.at[k].set(i), b.at[k].set(j), k+1), false_fun=lambda a, k, i, j: (a, b, k), operand=x).item() #.item() for scalar;; necessary for differrentiation!
     return a, b
 
 # @njit(parallel=True)
