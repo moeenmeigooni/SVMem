@@ -575,14 +575,28 @@ if __name__ == "__main__":
     # define gamma, hyperparameter used for RBF kernel 
     gamma = 0.1 
 
-    svmem = SVMem(lipid.xyz, # atomic xyz coordinates of all lipids; shape = (n_frames, n_atoms)
-                  head_selection, # indices of training points; shape = (n_lipids)
-                  atom_ids_per_lipid, # list of atom ids for each lipid; shape = (n_lipids, 
-                  lipid.unitcell_lengths, # unitcell dimensions; shape = (n_frames, 3)
-                  periodic, 
-                  gamma) 
+    
+    ########TEST########
+    periodic = jnp.array(periodic)
+    box_dims=jnp.array([4,3,5])
+    xyzs = jnp.array(np.random.normal(size=(20,3))
+    sym_dist_mat_(xyzx, box_dims, periodic)       
+    
+    
+    
+    
+    
+    
+    
+##########FINAL TEST############
+#     svmem = SVMem(lipid.xyz, # atomic xyz coordinates of all lipids; shape = (n_frames, n_atoms)
+#                   head_selection, # indices of training points; shape = (n_lipids)
+#                   atom_ids_per_lipid, # list of atom ids for each lipid; shape = (n_lipids, 
+#                   lipid.unitcell_lengths, # unitcell dimensions; shape = (n_frames, 3)
+#                   periodic, 
+#                   gamma) 
 
-    svmem.calculate_curvature(frames='all')
+#     svmem.calculate_curvature(frames='all')
 
-    # curvature and normal vectors are stored in the svmem object
-    print(svmem.mean_curvature, svmem.gaussian_curvature, svmem.normal_vectors)
+#     # curvature and normal vectors are stored in the svmem object
+#     print(svmem.mean_curvature, svmem.gaussian_curvature, svmem.normal_vectors)
