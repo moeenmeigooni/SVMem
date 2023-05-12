@@ -101,7 +101,7 @@ def unravel_index(n1, n2):
             b = b.at[i,j].set(j)
     return a.ravel(), b.ravel()
 
-@jit
+@partial(jit, static_argnames=["n"])
 def unravel_upper_triangle_index(n):
     n_unique = (n * (n-1)) // 2
     a, b = jnp.empty((n_unique),dtype=jnp.int64), jnp.empty((n_unique),dtype=jnp.int64)
