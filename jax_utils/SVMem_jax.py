@@ -131,7 +131,7 @@ def sym_dist_mat_(xyzs, box_dims, periodic):
 #                     dr -= box_dims[ri]
             def while_func(dr):
                 cond_fun = lambda dr : dr >  (box_dims[ri]*0.5)
-                body_fun = lambda dr : dr -= box_dims[ri]
+                body_fun = lambda dr : dr - box_dims[ri]
                 dr = jax.lax.while_loop(cond_fun=cond_fun, body_fun=body_fun, init_val=dr)
                 return dr
             dr = jax.lax.cond(pred=periodic[ri], true_fun=while_func, false_fun=lambda dr: dr, operand=dr)
