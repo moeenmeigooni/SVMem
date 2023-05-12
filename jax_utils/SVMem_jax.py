@@ -108,11 +108,11 @@ def unravel_upper_triangle_index(n):
     k = 0
     for i in range(n):
         for j in range(n):
-            if i < j: #not subject to jax(static_argnums) abstraction
-                a = a.at[k].set(i)
-                b = b.at[k].set(j)
-                k += 1
-#             (a, b, k) = jax.lax.cond(pred=(i < j), true_fun=lambda a, k, i, j: (a.at[k].set(i), b = b.at[k].set(j), k), false_fun=lambda a, k, i, j: (a, b, k), operand=x).item() #.item() for scalar;; necessary for differrentiation!
+#             if i < j: #not subject to jax(static_argnums) abstraction
+#                 a = a.at[k].set(i)
+#                 b = b.at[k].set(j)
+#                 k += 1
+            (a, b, k) = jax.lax.cond(pred=(i < j), true_fun=lambda a, k, i, j: (a.at[k].set(i), b = b.at[k].set(j), k), false_fun=lambda a, k, i, j: (a, b, k), operand=x).item() #.item() for scalar;; necessary for differrentiation!
     return a, b
 
 # @njit(parallel=True)
@@ -147,8 +147,8 @@ def sym_dist_mat(xyzs, box_dims, periodic):
     for i in range(n):
         for j in range(n):
             if i < j:
-                dist_mat[i,j] = dist_mat_flat[k]
-                dist_mat[j,i] = dist_mat_flat[k]
+                dist_mat = dist_mat.at[i,j].set(dist_mat_flat[k])
+                dist_mat = dist_mat.at[j,i].set(dist_mat_flat[k])
                 k += 1
     return dist_mat
 
