@@ -13,6 +13,7 @@ roots = pathlib.Path(__file__).parent.parent
 sys.path.append(roots)
 from jax_utils.main import get_args
 from SVMem import SVMem
+from functools import partial
 
 warnings.simplefilter('ignore')
 
@@ -22,23 +23,35 @@ def ndot(a, b):
     s = 0.
     for i in range(n):
         s += a[i] * b[i]
-    return s
+    return s.item()
 
 @jit
 def nsign(x):
-    if x > 0.:
-        s = 1.
-    else:
-        s = -1.
+#     if x > 0.:
+#         s = 1.
+#     else:
+#         s = -1.
+    s = jax.lax.cond(pred=(x>0.), true_fun=lambda s: 1., false_fun=lambda s: -1., operand=x).item() #.item() for scalar;; necessary for differrentiation!
+    #https://jax.readthedocs.io/en/latest/notebooks/Common_Gotchas_in_JAX.html#:~:text=Summary,unrolls%20the%20loop
     return s
 
 @jit
 def nsign_int(x):
-    if x > 0.:
-        s = 1
-    else:
-        s = -1
+#     if x > 0.:
+#         s = 1
+#     else:
+#         s = -1
+    s = jax.lax.cond(pred=(x>0.), true_fun=lambda s: 1, false_fun=lambda s: -1, operand=x).item() #.item() for scalar;; necessary for differrentiation!
     return s
+
+####EQUIVALENT TO ABOVE!
+# @partial(jit, static_argnums=(0,))
+# def nsign_int(x):
+#     if x > 0.:
+#         s = 1
+#     else:
+#         s = -1
+#     return s
 
 @jit
 def vec_mag(vec):
@@ -46,7 +59,7 @@ def vec_mag(vec):
     l = 0.
     for i in range(n):
         l += (vec[i])**2.
-    return jnp.sqrt(l)
+    return jnp.sqrt(l).item()
 
 @jit
 def vec_mags(vecs):
@@ -54,7 +67,7 @@ def vec_mags(vecs):
     d = vecs.shape[1]
     mags = jnp.empty((n))
     for i in range(n):
-        mags[i] = vec_mag(vecs[i])
+        mags = mags.at[i].set(vec_mag(vecs[i]))
     return mags
 
 @jit
@@ -66,7 +79,7 @@ def vec_norms(vecs):
     n = len(vecs)
     norm_vecs = jnp.empty_like(vecs)
     for i in range(n):
-        norm_vecs[i] = vec_norm(vecs[i])
+        norm_vecs = norm_vecs.at[i].set(vec_norm(vecs[i]))
     return norm_vecs
 
 @jit
@@ -76,7 +89,7 @@ def vec_sum(vecs):
     vecsum = jnp.zeros((d))
     for i in range(n):
         for j in range(d):
-            vecsum[j] += vecs[i,j]
+            vecsum = vecsum.at[j].add(vecs[i,j])
     return vecsum
 
 @jit
@@ -84,8 +97,9 @@ def unravel_index(n1, n2):
     a, b = jnp.empty((n1, n2), dtype=jnp.int64), jnp.empty((n1, n2), dtype=jnp.int64)
     for i in range(n1):
         for j in range(n2):
-            a[i,j], b[i,j] = i, j
-    return a.ravel(),b.ravel()
+            a = a.at[i,j].set(i)
+            b = b.at[i,j].set(j)
+    return a.ravel(), b.ravel()
 
 @jit
 def unravel_upper_triangle_index(n):
@@ -95,24 +109,30 @@ def unravel_upper_triangle_index(n):
     for i in range(n):
         for j in range(n):
             if i < j:
-                a[k], b[k] = i, j
+                a = a.at[k].set(i)
+                b = b.at[k].set(j)
                 k += 1
+#             s = jax.lax.cond(pred=(i < j), true_fun=lambda a, k, i: 1, false_fun=lambda s: -1, operand=x).item() #.item() for scalar;; necessary for differrentiation!
     return a, b
 
-@njit(parallel=True)
+# @njit(parallel=True)
+@jit
 def sym_dist_mat_(xyzs, box_dims, periodic):
     n = xyzs.shape[0]
     n_unique = (n * (n-1)) // 2
     ndim = xyzs.shape[1]
     i, j = unravel_upper_triangle_index(n)
     dist_mat = jnp.zeros((n_unique))
-    for k in prange(n_unique):
-        for ri in prange(ndim):
+    for k in prange(n_unique): #n_unique: upper triangle of pairwise dist
+        for ri in prange(ndim): #ndim: 3 (xyz)
             dr = jnp.abs(xyzs[i[k],ri] - xyzs[j[k],ri])
             if periodic[ri] == True:
                 while (dr >  (box_dims[ri]*0.5)):
                     dr -= box_dims[ri]
-            dist_mat[k] += jnp.square(dr)
+#                 cond_fun = lambda dr, ri, box_dims: dr >  (box_dims[ri]*0.5)
+#                 body_fun = lambda dr, ri, box_dims: dr -= box_dims[ri]
+#                 jax.lax.while_loop(cond_fun=cond_fun, body_fun=body_fun, init_val=dr)
+            dist_mat.at[k].add(jnp.square(dr))
     return jnp.sqrt(dist_mat)
 
 @jit
