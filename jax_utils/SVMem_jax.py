@@ -92,7 +92,7 @@ def vec_sum(vecs):
             vecsum = vecsum.at[j].add(vecs[i,j])
     return vecsum
 
-@jit
+@partial(jit, static_argnames=["n1", "n2"])
 def unravel_index(n1, n2):
     a, b = jnp.empty((n1, n2), dtype=jnp.int64), jnp.empty((n1, n2), dtype=jnp.int64)
     for i in range(n1):
