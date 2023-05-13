@@ -592,7 +592,7 @@ if __name__ == "__main__":
     start = time.perf_counter()
     periodic = jnp.array(periodic)
     box_dims=jnp.array([4,3,5])
-    r = sym_dist_mat(xyzs, box_dims, periodic).block_until_ready()       
+    r = sym_dist_mat(xyzs, box_dims, periodic) #.block_until_ready()       
     print(r)
     end = time.perf_counter()
     print(end-start)
