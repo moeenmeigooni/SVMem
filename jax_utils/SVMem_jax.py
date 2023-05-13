@@ -14,6 +14,7 @@ sys.path.append(roots)
 from jax_utils.main import get_args
 from SVMem import SVMem
 from functools import partial
+import time
 
 warnings.simplefilter('ignore')
 
@@ -588,10 +589,13 @@ if __name__ == "__main__":
     r = vec_sum(xyzs)
     print(r)
     
+    start = time.perf_counter()
     periodic = jnp.array(periodic)
     box_dims=jnp.array([4,3,5])
     r = sym_dist_mat(xyzs, box_dims, periodic).block_until_ready()       
     print(r)
+    end = time.perf_counter()
+    print(end-start)
     
     
     
