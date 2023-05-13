@@ -517,7 +517,8 @@ class SVMem(object):
             self.support_indices_list.append(support_indices_i)
             
 if __name__ == "__main__":
-    
+    import time
+
     ########TEST######
     xyzs = np.array(np.random.normal(size=(20,3)))
     
@@ -527,12 +528,14 @@ if __name__ == "__main__":
     r = vec_sum(xyzs)
     print(r)
     
+    start = time.perf_counter()
     periodic = np.array([True, True, False])
     box_dims=np.array([4,3,5])
     r = sym_dist_mat(xyzs, box_dims, periodic)       
     print(r)
+    end = time.perf_counter()
+    print(end-start)
     
-    import time
     start = time.perf_counter()
     for _ in range(1000):
         periodic = np.array([True, True, False])
