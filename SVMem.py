@@ -521,6 +521,9 @@ if __name__ == "__main__":
     ########TEST######
     xyzs = np.array(np.random.normal(size=(20,3)))
     
+    r = unravel_upper_triangle_index(10)
+    print(r)
+    
     r = vec_sum(xyzs)
     print(r)
     
