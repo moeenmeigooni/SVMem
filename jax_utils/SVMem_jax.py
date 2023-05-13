@@ -118,8 +118,8 @@ def unravel_upper_triangle_index(n):
                                      a, b, k, i, j ) #.item() for scalar;; necessary for differrentiation!
     return a, b
 
-@njit(parallel=True)
 @jit
+@njit(parallel=True)
 def sym_dist_mat_(xyzs, box_dims, periodic):
     n = xyzs.shape[0]
     n_unique = (n * (n-1)) // 2
