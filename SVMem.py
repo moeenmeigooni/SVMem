@@ -537,7 +537,7 @@ if __name__ == "__main__":
     print(end-start)
     
     start = time.perf_counter()
-    for _ in range(1000):
+    for _ in range(10000):
         periodic = np.array([True, True, False])
         box_dims=np.array([4,3,5])
         r = sym_dist_mat(xyzs, box_dims, periodic)      
