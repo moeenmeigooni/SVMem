@@ -518,10 +518,14 @@ class SVMem(object):
             
 if __name__ == "__main__":
     
-    ########TEST########
+    ########TEST######
+    xyzs = np.array(np.random.normal(size=(20,3)))
+    
+    r = vec_sum(xyzs)
+    print(r)
+    
     periodic = np.array([True, True, False])
     box_dims=np.array([4,3,5])
-    xyzs = np.array(np.random.normal(size=(20,3)))
     r = sym_dist_mat(xyzs, box_dims, periodic)       
     print(r)
     
