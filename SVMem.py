@@ -532,3 +532,12 @@ if __name__ == "__main__":
     r = sym_dist_mat(xyzs, box_dims, periodic)       
     print(r)
     
+    import time
+    start = time.perf_counter()
+    for _ in range(1000):
+        periodic = np.array([True, True, False])
+        box_dims=np.array([4,3,5])
+        r = sym_dist_mat(xyzs, box_dims, periodic)      
+    end = time.perf_counter()
+    print(end-start)
+    
