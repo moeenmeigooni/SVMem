@@ -15,6 +15,7 @@ from jax_utils.main import get_args
 from SVMem import SVMem
 from functools import partial
 import time
+# https://antixk.netlify.app/blog/linearization_ad/ #JAX jvp etc.
 
 warnings.simplefilter('ignore')
 
