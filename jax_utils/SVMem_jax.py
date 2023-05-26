@@ -19,7 +19,7 @@ import time
 
 warnings.simplefilter('ignore')
 
-@jit
+# @jit
 def ndot(a, b):
     n = len(a)
     s = 0.
@@ -27,7 +27,7 @@ def ndot(a, b):
         s += a[i] * b[i]
     return s.item()
 
-@jit
+# @jit
 def nsign(x):
 #     if x > 0.:
 #         s = 1.
@@ -37,7 +37,7 @@ def nsign(x):
     #https://jax.readthedocs.io/en/latest/notebooks/Common_Gotchas_in_JAX.html#:~:text=Summary,unrolls%20the%20loop
     return s
 
-@jit
+# @jit
 def nsign_int(x):
 #     if x > 0.:
 #         s = 1
@@ -55,7 +55,7 @@ def nsign_int(x):
 #         s = -1
 #     return s
 
-@jit
+# @jit
 def vec_mag(vec):
     n = len(vec)
     l = 0.
@@ -63,7 +63,7 @@ def vec_mag(vec):
         l += (vec[i])**2.
     return jnp.sqrt(l).item()
 
-@jit
+# @jit
 def vec_mags(vecs):
     n = vecs.shape[0]
     d = vecs.shape[1]
@@ -72,11 +72,11 @@ def vec_mags(vecs):
         mags = mags.at[i].set(vec_mag(vecs[i]))
     return mags
 
-@jit
+# @jit
 def vec_norm(vec):
     return vec / vec_mag(vec)
 
-@jit
+# @jit
 def vec_norms(vecs):
     n = len(vecs)
     norm_vecs = jnp.empty_like(vecs)
@@ -84,7 +84,7 @@ def vec_norms(vecs):
         norm_vecs = norm_vecs.at[i].set(vec_norm(vecs[i]))
     return norm_vecs
 
-@jit
+# @jit
 def vec_sum(vecs):
     n = vecs.shape[0]
     d = vecs.shape[1]
@@ -94,7 +94,7 @@ def vec_sum(vecs):
             vecsum = vecsum.at[j].add(vecs[i,j])
     return vecsum
 
-@partial(jit, static_argnames=["n1", "n2"])
+# @partial(jit, static_argnames=["n1", "n2"])
 def unravel_index(n1, n2):
     a, b = jnp.empty((n1, n2), dtype=jnp.int64), jnp.empty((n1, n2), dtype=jnp.int64)
     for i in range(n1):
@@ -103,7 +103,7 @@ def unravel_index(n1, n2):
             b = b.at[i,j].set(j)
     return a.ravel(), b.ravel()
 
-@partial(jit, static_argnames=["n"])
+# @partial(jit, static_argnames=["n"])
 def unravel_upper_triangle_index(n):
     n_unique = (n * (n-1)) // 2
     a, b = jnp.empty((n_unique),dtype=jnp.int64), jnp.empty((n_unique),dtype=jnp.int64)
@@ -121,7 +121,7 @@ def unravel_upper_triangle_index(n):
     return a, b
 
 # @njit(parallel=True)
-@jit
+# @jit
 def sym_dist_mat_(xyzs, box_dims, periodic):
     n = xyzs.shape[0]
     n_unique = (n * (n-1)) // 2
