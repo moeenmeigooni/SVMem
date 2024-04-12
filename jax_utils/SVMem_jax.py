@@ -23,8 +23,10 @@ warnings.simplefilter('ignore')
 def ndot(a, b):
     n = len(a)
     s = 0.
-    for i in range(n):
-        s += a[i] * b[i]
+    # for i in range(n):
+    #     s += a[i] * b[i]
+    s = jax.lax.associate_scan(jnp.add, a * b)
+    s = s.at[-1].get()
     return s.item()
 
 # @jit
@@ -59,8 +61,10 @@ def nsign_int(x):
 def vec_mag(vec):
     n = len(vec)
     l = 0.
-    for i in range(n):
-        l += (vec[i])**2.
+    # for i in range(n):
+    #     l += (vec[i])**2.
+    l = jax.lax.associate_scan(jnp.add, vec ** 2)
+    l = l.at[-1].get()
     return jnp.sqrt(l).item()
 
 # @jit
@@ -68,8 +72,9 @@ def vec_mags(vecs):
     n = vecs.shape[0]
     d = vecs.shape[1]
     mags = jnp.empty((n))
-    for i in range(n):
-        mags = mags.at[i].set(vec_mag(vecs[i]))
+    # for i in range(n):
+    #     mags = mags.at[i].set(vec_mag(vecs[i]))
+    mags = jax.lax.fori_loop(0, n, lambda i, mags: mags.at[i].set(vec_mag(vecs[i])), mags)
     return mags
 
 # @jit
@@ -80,8 +85,9 @@ def vec_norm(vec):
 def vec_norms(vecs):
     n = len(vecs)
     norm_vecs = jnp.empty_like(vecs)
-    for i in range(n):
-        norm_vecs = norm_vecs.at[i].set(vec_norm(vecs[i]))
+    # for i in range(n):
+    #     norm_vecs = norm_vecs.at[i].set(vec_norm(vecs[i]))
+    norm_vecs = jax.lax.fori_loop(0, n, lambda i, norm_vecs: norm_vecs.at[i].set(vec_norm(vecs[i])), norm_vecs)
     return norm_vecs
 
 # @jit
@@ -89,9 +95,10 @@ def vec_sum(vecs):
     n = vecs.shape[0]
     d = vecs.shape[1]
     vecsum = jnp.zeros((d))
-    for i in range(n):
-        for j in range(d):
-            vecsum = vecsum.at[j].add(vecs[i,j])
+    # for i in range(n):
+    #     for j in range(d):
+    #         vecsum = vecsum.at[j].add(vecs[i,j])
+    vecsum = jax.lax.fori_loop(0, n, lambda i, vecsum: jax.lax.fori_loop(0, d, lambda j, vecsum: vecsum.at[j].add(vecs[i,j]), vecsum), vecsum)
     return vecsum
 
 # @partial(jit, static_argnames=["n1", "n2"])
