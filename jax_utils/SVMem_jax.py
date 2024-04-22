@@ -12,7 +12,7 @@ import os, sys, argparse, pathlib
 roots = pathlib.Path(__file__).parent.parent
 sys.path.append(roots)
 from jax_utils.main import get_args
-from SVMem import SVMem
+from numba_utils.SVMem import SVMem
 from functools import partial
 import time
 # https://antixk.netlify.app/blog/linearization_ad/ #JAX jvp etc.
