@@ -1,14 +1,34 @@
+import argparse 
 import MDAnalysis as mda
 from MDAnalysis.analysis.base import AnalysisBase
 import numpy as np
 from typing import List
 
+parser = argparse.ArgumentParser(description='')
+
+parser.add_argument('topology', help='Topology file for trajectory (e.g. psf, parm7, pdb)')
+parser.add_argument('trajectory', help='Trajectory file or list of trajectory files (e.g. dcd, xtc)')
+parser.add_argument('-b', '--backend', default='numba', choices=['jax', 'numba', 'numpy'],
+                    help='Backend for curvature calculations.')
+parser.add_argument('-m', '--membrane', default='segname MEMB', help='Atom selection text\
+    that adheres to the MDAnalysis conventions for selecting your whole membrane.')
+parser.add_argument('-ff', '--forcefield', choices=['martini', 'charmm', 'amber'], 
+                    help='Forcefield used for simulation')
+parser.add_argument('-p', '--periodic', default=[True, True, False],
+                    help='Boolean list of shape (3,1) which describes the dimensions \
+                        to consider periodicity in. Should be [True, True, False]')
+parser.add_argument('-g', '--gamma', default=0.1, help='Value for gamma hyperparameter.')
+parser.add_argument('-lr', '--learning_rate', default=0.01, help='Learning rate for SVM training.')
+parser.add_argument('-mi', '--max_iter', default=500, help='Maximum number of iterations of training.')
+parser.add_argument('-t', '--tolerance', default=0.001, help='Tolerance.')
+parser.add_argument('-l', '--labels', default=None, help='Precomputed training labels.')
+
 class MembraneCurvature(AnalysisBase):
     """
     Analysis class that computes membrane curvature for a given simulation. 
     Must provide an MDAnalysis universe object, membrane atom selection and
-    a methodology for computing the curvature. Options include: JAX or
-    simply numba.
+    a methodology for computing the curvature. Options include: JAX, numba or
+    simply numpy.
     ------
     Inputs
     ------
@@ -18,7 +38,7 @@ class MembraneCurvature(AnalysisBase):
                  method: str='numba', forcefield: str='martini',
                  periodic: List[bool]=[True, True, False], gamma: float=.1,
                  learning_rate: float=0.01, max_iter: int=500,
-                 tolerance: float=0.0001, train_labels: str='auto'):
+                 tolerance: float=0.0001, train_labels: None):
         super().__init__(memb.universe.trajectory)
         self.u = memb.universe
         self.memb = memb
@@ -31,7 +51,6 @@ class MembraneCurvature(AnalysisBase):
             
         self.train_points = u.select_atoms(head_sel)
         self.n_train_points = self.train_points.n_atoms
-        self.support_indices_list = None
         self.n_frames = len(u.trajectory)
         
         # Switch for underlying methodology
@@ -75,9 +94,30 @@ class MembraneCurvature(AnalysisBase):
     def _conclude(self):
         pass
     
+
 if __name__ == '__main__':
     u = mda.Universe('membrane-cdl-1d.pdb')
     sel = u.select_atoms('not name W WF NA CL')
     test_class = MembraneCurvature(sel, method='numba')
     test_class.run()
     print(test_class.mean_curvature)
+
+else:
+    args = parser.parse_args()
+    top = args.topology
+    traj = args.trajectory
+    backend = args.backend
+    memb = args.membrane_selection
+    forcefield = args.forcefield
+    periodic = args.periodic
+    gamma = args.gamma
+    learning_rate = args.learning_rate
+    max_iter = args.max_iter
+    tolerance = args.tolerance
+    labels = args.labels
+
+    u = mda.Universe(top, traj)
+    sel = u.select_atoms(memb)
+    analysis = MembraneCurvature(sel, method=backend, forcefield=forcefield,
+                                 periodic=periodic, gamma=gamma, learning_rate=learning_rate,
+                                 max_iter=max_iter, tolerance=tolerance, train_labels=labels)

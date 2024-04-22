@@ -409,7 +409,7 @@ def curvatures(points, support_points, box_dims, periodic, gamma, weights):
     return gaussian_curvatures, mean_curvatures
 
 class Backend(object):
-    def __init__(self, periodic: List[bool], train_labels: str, gamma: float, learning_rate: float,
+    def __init__(self, periodic: List[bool], train_labels: None, gamma: float, learning_rate: float,
                  max_iter: float, tolerance: float, atom_ids_per_lipid: List[np.ndarray]):
         self.periodic = periodic
         self.gamma = gamma
@@ -418,7 +418,7 @@ class Backend(object):
         self.tol = tolerance
         self.atom_ids_per_lipid = atom_ids_per_lipid
         
-        if train_labels != 'auto':
+        if train_labels is not None:
             self.train_labels = train_labels
             self.autogenerate_labels = False
         else:
