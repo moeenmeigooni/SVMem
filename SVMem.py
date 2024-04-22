@@ -459,7 +459,7 @@ class SVMem(object):
             self.autogenerate_labels = True
     
     def _calculate_train_labels(self, frame, distance_matrix):
-        cluster = AgglomerativeClustering(n_clusters=2, affinity='precomputed', linkage='single')
+        cluster = AgglomerativeClustering(n_clusters=2, metric='precomputed', linkage='single')
         self.train_labels = cluster.fit_predict(distance_matrix)
         zmean0 = np.mean(self.train_points[frame,:,2][np.where(self.train_labels==0)[0]])
         zmean1 = np.mean(self.train_points[frame,:,2][np.where(self.train_labels==1)[0]])
