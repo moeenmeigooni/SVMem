@@ -12,7 +12,7 @@ import os, sys, argparse, pathlib
 roots = pathlib.Path(__file__).parent.parent
 sys.path.append(roots)
 from jax_utils.main import get_args
-from numba_utils.SVMem import SVMem
+from numba_utils.SVMem_numba import SVMem
 from functools import partial
 import time
 # https://antixk.netlify.app/blog/linearization_ad/ #JAX jvp etc.
@@ -455,7 +455,7 @@ def curvatures(points, support_points, box_dims, periodic, gamma, weights):
         mean_curvatures[i] = mean_curvature(grad, hess)
     return gaussian_curvatures, mean_curvatures
 
-class SVMem_jax(object):
+class Backend(object):
     def __init__(self, xyz, train_indices, atom_ids_per_lipid, box_dims, periodic, gamma, 
                  train_labels='auto', learning_rate=None, max_iter=None, tol=None):
         if xyz.shape[0] != box_dims.shape[0]:

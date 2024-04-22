@@ -407,7 +407,7 @@ def curvatures(points, support_points, box_dims, periodic, gamma, weights):
         mean_curvatures[i] = mean_curvature(grad, hess)
     return gaussian_curvatures, mean_curvatures
 
-class SVMem(object):
+class Backend(object):
     def __init__(self, xyz, train_indices, atom_ids_per_lipid, box_dims, periodic, gamma, 
                  train_labels='auto', learning_rate=None, max_iter=None, tol=None):
         if xyz.shape[0] != box_dims.shape[0]:
