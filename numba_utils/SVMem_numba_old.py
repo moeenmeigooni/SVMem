@@ -2,7 +2,6 @@ import numpy as np
 from numba import njit, prange
 from sklearn.svm import SVC
 from sklearn.cluster import AgglomerativeClustering
-from typing import List
 
 @njit
 def ndot(a, b):
@@ -409,35 +408,61 @@ def curvatures(points, support_points, box_dims, periodic, gamma, weights):
     return gaussian_curvatures, mean_curvatures
 
 class Backend(object):
-    def __init__(self, periodic: List[bool], train_labels: str, gamma: float, learning_rate: float,
-                 max_iter: float, tolerance: float, atom_ids_per_lipid: List[np.ndarray]):
-        self.periodic = periodic
-        self.gamma = gamma
-        self.learning_rate = learning_rate
-        self.max_iter = max_iter
-        self.tol = tolerance
-        self.atom_ids_per_lipid = atom_ids_per_lipid
-        
+    def __init__(self, xyz, train_indices, atom_ids_per_lipid, box_dims, periodic, gamma, 
+                 train_labels='auto', learning_rate=None, max_iter=None, tol=None):
+        if xyz.shape[0] != box_dims.shape[0]:
+            raise ValueError('Lengths of inputs (xyz, box_dims) must match (%i != %i)'%(xyz.shape[0], box_dims.shape[0]))
+        elif xyz.shape[-1] != box_dims.shape[-1] or box_dims.shape[-1] != periodic.shape[0]:
+            raise ValueError('Dimensions of inputs (xyz, box_dims, periodic) must match')
+        elif len(train_indices.shape) > 1:
+            raise ValueError('training indices (train_indices) must be a one-dimensional array of integers (%i-d supplied)'%len(train_indices.shape))
+        else:
+            self.xyz = xyz.astype(np.float64)
+            self.box_dims = box_dims.astype(np.float64)
+            self.periodic = periodic
+            self.gamma = gamma
+            self.train_indices = train_indices.astype(np.int64)
+            self.train_points = xyz[:,train_indices].copy()
+            self.n_train_points = len(train_indices)
+            self.train_labels = None
+            self.weights_list = None
+            self.intercept_list = None
+            self.support_indices_list = None
+        if np.sum([len(atom_id_per_lipid) for atom_id_per_lipid in atom_ids_per_lipid]) != self.xyz.shape[1]:
+            raise ValueError('list of lipid atom ids (atom_ids_per_lipid) must sum to the total number of atoms')
+        else:
+            self.atom_ids_per_lipid = atom_ids_per_lipid
+        if learning_rate is not None:
+            if learning_rate > 1. or learning_rate < 0.:
+                raise ValueError('learning rate (learning_rate) must be decimal between 0 and 1')
+            else:
+                self.learning_rate = learning_rate
+        else:
+            self.learning_rate = 0.01 # default learning_rate
+        if max_iter is not None:
+            self.max_iter = max_iter
+        else:
+            self.max_iter = 500 # default max_iter
+        if tol is not None:
+            if tol > 1. or tol < 0.:
+                raise ValueError('tolerance (tol) must be decimal between 0 and 1')
+            else:
+                self.tol = tol
+        else:
+            self.tol = 0.0001 # default tol
         if train_labels != 'auto':
+            if len(np.where(train_labels == 1.)[0]) + len(np.where(train_labels == -1.)[0]) != self.n_train_points:
+                raise ValueError('supplied training labels (train_labels) must be either -1.0 (for bottom leaflet) or 1.0 (for top leaflet)')
             self.train_labels = train_labels
             self.autogenerate_labels = False
         else:
             self.autogenerate_labels = True
     
-    def _calculate_train_labels(self, distance_matrix: np.ndarray, train_points: np.ndarray):
-        """
-        Labels training data based on which leaflet it is in. Leaflet assignment is
-        done using AgglomerativeClustering method from sklearn and the precomputed
-        distance matrix for headgroup atoms.
-        
-        Args:
-            distance_matrix (np.ndarray): Distance matrix
-            train_points (np.ndarray): Blah
-        """
+    def _calculate_train_labels(self, frame, distance_matrix):
         cluster = AgglomerativeClustering(n_clusters=2, metric='precomputed', linkage='single')
         self.train_labels = cluster.fit_predict(distance_matrix)
-        zmean0 = np.mean(train_points[:, 2][np.where(self.train_labels==0)[0]])
-        zmean1 = np.mean(train_points[:, 2][np.where(self.train_labels==1)[0]])
+        zmean0 = np.mean(self.train_points[frame,:,2][np.where(self.train_labels==0)[0]])
+        zmean1 = np.mean(self.train_points[frame,:,2][np.where(self.train_labels==1)[0]])
         if zmean0 > zmean1:
             self.train_labels = np.where(self.train_labels==0, 1., -1.)
         else:
@@ -446,27 +471,76 @@ class Backend(object):
     def _train_svm(self, kernel_matrix):
         model = SVC(C=1.,kernel='precomputed', verbose=0, cache_size=1000)
         model.fit(X=kernel_matrix, y=self.train_labels)
-        
-        return (model.dual_coef_.astype(np.float64).flatten(), 
-                model.intercept_.astype(np.float64)[0], 
-                model.support_.astype(np.int64).flatten())
+        return model.dual_coef_.astype(np.float64).flatten(), model.intercept_.astype(np.float64)[0], model.support_.astype(np.int64).flatten()
     
-    def calculate_curvature(self, train_points, box_dims, xyz):
-        train_mat = sym_dist_mat(train_points, box_dims, self.periodic)
+    def _calculate_curvature(self, frame):
+        train_mat = sym_dist_mat(self.train_points[frame], self.box_dims[frame], self.periodic)
         if self.autogenerate_labels:
-            self._calculate_train_labels(train_mat, train_points)
-            
+            self._calculate_train_labels(frame, train_mat)
         train_kernel = gaussian_transform_mat(train_mat, self.gamma)
         weights, intercept, support_indices = self._train_svm(train_kernel)
-        coms = calculate_lipid_coms(xyz.positions, self.atom_ids_per_lipid, box_dims)
-        bounds, normal_vectors = descend_to_boundary(coms, train_points[support_indices], 
-                                                     box_dims, self.periodic, weights, 
-                                                     intercept, self.gamma, self.learning_rate, 
-                                                     self.max_iter, self.tol)
-        
-        gauss, mean = curvatures(bounds, train_points[support_indices], 
-                                 box_dims, self.periodic, self.gamma, weights)
-        
+        coms = calculate_lipid_coms(self.xyz[frame], self.atom_ids_per_lipid, self.box_dims[frame])
+        bounds, normal_vectors = descend_to_boundary(coms, self.train_points[frame,support_indices], 
+                    self.box_dims[frame], self.periodic, 
+                    weights, intercept, self.gamma, self.learning_rate, self.max_iter, self.tol)
+        gauss, mean = curvatures(bounds, self.train_points[frame,support_indices], self.box_dims[frame], self.periodic, self.gamma, weights)
         mean *= -1.
         mean *= self.train_labels
         return mean, gauss, normal_vectors, weights, intercept, support_indices
+    
+
+    def calculate_curvature(self, frames=None, stride=None):
+        if (frames is None and stride is None) or (frames is not None and stride is not None):
+            raise ValueError('Please supply only one of the parameters frames or stride')
+        elif frames is None and stride is not None:
+            frames = np.arange(0, len(self.xyz), stride)
+        elif frames is not None and stride is None:
+            if type(frames) == str:
+                if frames == 'all':
+                    frames = np.arange(0, len(self.xyz))
+            else:
+                try:
+                    assert len(frames.shape) == 1
+                except AssertionError:
+                    raise ValueError('Parameter frames must be a 1-dimensional np array')            
+        n_frames = len(frames)
+        self.weights_list = []
+        self.intercept_list = []
+        self.support_indices_list = []
+        self.normal_vectors = np.empty((n_frames, self.n_train_points, 3))
+        self.mean_curvature = np.empty((n_frames, self.n_train_points))
+        self.gaussian_curvature = np.empty((n_frames, self.n_train_points))
+        for i,frame in enumerate(frames):
+            self.mean_curvature[i], self.gaussian_curvature[i], self.normal_vectors[i], weights_i, intercept_i, support_indices_i = self._calculate_curvature(frame)
+            self.weights_list.append(weights_i)
+            self.intercept_list.append(intercept_i)
+            self.support_indices_list.append(support_indices_i)
+            
+if __name__ == "__main__":
+    import time
+
+    ########TEST######
+    xyzs = np.array(np.random.normal(size=(20,3)))
+    
+    r = unravel_upper_triangle_index(10)
+    print(r)
+    
+    r = vec_sum(xyzs)
+    print(r)
+    
+    start = time.perf_counter()
+    periodic = np.array([True, True, False])
+    box_dims=np.array([4,3,5])
+    r = sym_dist_mat(xyzs, box_dims, periodic)       
+    print(r)
+    end = time.perf_counter()
+    print(end-start)
+    
+    start = time.perf_counter()
+    for _ in range(10000):
+        periodic = np.array([True, True, False])
+        box_dims=np.array([4,3,5])
+        r = sym_dist_mat(xyzs, box_dims, periodic)      
+    end = time.perf_counter()
+    print(end-start)
+    

@@ -1,4 +1,4 @@
-from numba_utils.SVMem_numba import SVMem
+from numba_utils.SVMem_numba_old import SVMem
 import numpy as np
 import mdtraj as md
 

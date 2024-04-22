@@ -1,8 +1,9 @@
 import MDAnalysis as mda
 from MDAnalysis.analysis.base import AnalysisBase
 import numpy as np
+from typing import List
 
-class SVMem(AnalysisBase):
+class MembraneCurvature(AnalysisBase):
     """
     Analysis class that computes membrane curvature for a given simulation. 
     Must provide an MDAnalysis universe object, membrane atom selection and
@@ -13,25 +14,14 @@ class SVMem(AnalysisBase):
     ------
     
     """
-    def __init__(self, u: mda.Universe, memb: mda.AtomGroup,
+    def __init__(self, memb: mda.AtomGroup,
                  method: str='numba', forcefield: str='martini',
-                 periodic: list(bool)=[True, True, False], gamma: float=.1,
+                 periodic: List[bool]=[True, True, False], gamma: float=.1,
                  learning_rate: float=0.01, max_iter: int=500,
                  tolerance: float=0.0001, train_labels: str='auto'):
-        self.u = u
+        super().__init__(memb.universe.trajectory)
+        self.u = memb.universe
         self.memb = memb
-        self.periodic = periodic
-        self.gamma = gamma
-        self.learning_rate = learning_rate
-        self.max_iter = max_iter
-        self.tolerance = tolerance
-        
-        if train_labels != 'auto':
-            self.train_labels = train_labels
-            self.autogenerate_labels = False
-        else:
-            self.train_labels = None
-            self.autogenerate_labels = True
         
         # Defined headgroup atom selections by forcefield
         if forcefield == 'martini':
@@ -41,31 +31,53 @@ class SVMem(AnalysisBase):
             
         self.train_points = u.select_atoms(head_sel)
         self.n_train_points = self.train_points.n_atoms
-        self.train_labels = None
-        self.weights_list = None
-        self.intercept_list = None
         self.support_indices_list = None
+        self.n_frames = len(u.trajectory)
         
         # Switch for underlying methodology
         if method.lower() == 'jax':
-            from jax_utils.SVMem_jax import Backend as backend
+            from jax_utils import SVMem_jax as SVMem
         elif method.lower() == 'numpy':
-            from numpy_utils.SVMem_numpy import Backend as backend
+            from numpy_utils import SVMem_numpy as SVMem
         else:
-            from numba_utils.SVMem_numba import Backend as backend
+            from numba_utils import SVMem_numba as SVMem
             
-        self.backend = backend()
+        atom_ids_per_lipid = [residue.atoms.indices for residue in memb.residues]
+        self.backend = SVMem.Backend(periodic, train_labels, gamma, learning_rate, 
+                               max_iter, tolerance, atom_ids_per_lipid)
         
     def _prepare(self):
-        pass
+        """
+        Preprocessing of data structures and universe object for per-frame calculations.
+        """
+        self.weights_list = []
+        self.intercept_list = []
+        self.support_indices_list = []
+        self.mean_curvature = np.empty((self.n_frames, self.n_train_points))
+        self.gaussian_curvature = np.empty_like(self.mean_curvature)
+        self.normal_vectors = np.empty((self.n_frames, self.n_train_points, 3))
 
     def _single_frame(self):
-        self.backend.compute_curvature()
-    
+        """
+        Calling the specified backend, compute the curvature for each frame of simulation.
+        """
+        fr = self.u.trajectory.frame
+        mean, gaussian, normals, weights, intercept, support_indices = self.backend.calculate_curvature(self.train_points.positions,
+                                                                                                        self.u.dimensions[:3],
+                                                                                                        self.memb)
+        self.mean_curvature[fr] = mean
+        self.gaussian_curvature[fr] = gaussian
+        self.normal_vectors[fr] = normals
+        self.weights_list.append(weights)
+        self.intercept_list.append(intercept)
+        self.support_indices_list.append(support_indices)
+        
     def _conclude(self):
         pass
     
 if __name__ == '__main__':
-    # testing happens here
-    print('Hello')
-    test_class = SVMem(u, sel, method='numba')
+    u = mda.Universe('membrane-cdl-1d.pdb')
+    sel = u.select_atoms('not name W WF NA CL')
+    test_class = MembraneCurvature(sel, method='numba')
+    test_class.run()
+    print(test_class.mean_curvature)
