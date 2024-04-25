@@ -1,4 +1,3 @@
-
 import warnings
 import numpy as np
 import mdtraj as md
@@ -7,383 +6,326 @@ from sklearn.svm import SVC
 from sklearn.cluster import AgglomerativeClustering
 import jax
 import jax.numpy as jnp
-from jax import grad, vmap, jit
-from jax import random
-import os, sys, argparse, pathlib
+from jax import grad, vmap, jit, lax, random
+from jax.typing import Tuple, Any, Callable, Array
+import os
+import sys
+import argparse
+import pathlib
+from functools import partial
+import time
+
+# JAX utils
 roots = pathlib.Path(__file__).parent.parent
 sys.path.append(roots)
 from jax_utils.main import get_args
 from numba_utils.SVMem_numba_old import SVMem
-from functools import partial
-import time
 # https://antixk.netlify.app/blog/linearization_ad/ #JAX jvp etc.
 
 warnings.simplefilter('ignore')
 
-def ndot(a, b):
-    return np.linalg.dot(a,b)
+def ndot(a: Array, b: Array) -> Array:
+    return jnp.dot(a, b)
 
-def nsign(x):
-    return (x > 0).astype(np.float64)
+def nsign(x: Array) -> Array:
+    return jnp.where(x > 0, 1.0, 0.0)
 
-def nsign_int(x):
-    return (x > 0).astype(np.int64)
+def nsign_int(x: Array) -> Array:
+    return jnp.where(x > 0, 1, 0)
 
-def vec_mag(vec):
-    return np.linalg.norm(vec)
+def vec_mag(vec: Array) -> Array:
+    return jnp.linalg.norm(vec)
 
-def vec_mags(vecs):
-    return np.linalg.norm(vec, axis=1)
+def vec_mags(vecs: Array) -> Array:
+    return jnp.linalg.norm(vecs, axis=1)
 
-def vec_norm(vec):
+def vec_norm(vec: Array) -> Array:
     return vec / vec_mag(vec)
 
-def vec_norms(vecs):
-    return vecs / vec_mags(vecs).reshape(-1,1)
+def vec_norms(vecs: Array) -> Array:
+    return vecs / vec_mags(vecs).reshape(-1, 1)
 
-def vec_sum(vecs):
-    return np.sum(vecs, axis=0)
+def vec_sum(vecs: Array) -> Array:
+    return jnp.sum(vecs, axis=0)
 
-@njit
-def unravel_index(n1, n2):
-    a, b = np.empty((n1, n2), dtype=np.int64), np.empty((n1, n2), dtype=np.int64)
-    for i in range(n1):
-        for j in range(n2):
-            a[i,j], b[i,j] = i, j
-    return a.ravel(),b.ravel()
+def unravel_index(n1: int, n2: int) -> Tuple[Array, Array]:
+    a = jnp.arange(n1)
+    b = jnp.arange(n2)
+    a_grid, b_grid = jnp.meshgrid(a, b, indexing='ij')
+    return a_grid.ravel(), b_grid.ravel()
 
-@njit
-def unravel_upper_triangle_index(n):
-    n_unique = (n * (n-1)) // 2
-    a, b = np.empty((n_unique),dtype=np.int64), np.empty((n_unique),dtype=np.int64)
-    k = 0
-    for i in range(n):
-        for j in range(n):
-            if i < j:
-                a[k], b[k] = i, j
-                k += 1
-    return a, b
+def unravel_upper_triangle_index(n: int) -> Tuple[Array, Array]:
+    idx = jnp.tril_indices(n, k=-1)
+    return idx[0], idx[1]
 
-@njit(parallel=True)
-def sym_dist_mat_(xyzs, box_dims, periodic):
+def sym_dist_mat_(xyzs: Array, box_dims: Array, periodic: bool) -> Array:
     n = xyzs.shape[0]
-    n_unique = (n * (n-1)) // 2
-    ndim = xyzs.shape[1]
     i, j = unravel_upper_triangle_index(n)
-    dist_mat = np.zeros((n_unique))
-    for k in prange(n_unique):
-        for ri in prange(ndim):
-            dr = np.abs(xyzs[i[k],ri] - xyzs[j[k],ri])
-            if periodic[ri] == True:
-                while (dr >  (box_dims[ri]*0.5)):
-                    dr -= box_dims[ri]
-            dist_mat[k] += np.square(dr)
-    return np.sqrt(dist_mat)
 
-@njit
-def sym_dist_mat(xyzs, box_dims, periodic):
+    def compute_dist(k: int) -> Array:
+        i_k = i[k]
+        j_k = j[k]
+        dr = jnp.abs(xyzs[i_k] - xyzs[j_k])
+        def apply_periodic_correction(args: Tuple[Array, Array]) -> Array:
+            dr, box_dims = args
+            return lax.cond(dr > box_dims * 0.5, (dr, box_dims), lambda args: args[0] - args[1], dr, operand=None)
+        dr = lax.cond(periodic, (dr, box_dims), apply_periodic_correction, dr, operand=None)
+        return jnp.sum(dr ** 2)
+
+    dist_mat = lax.map(compute_dist, jnp.arange(n * (n - 1) // 2))
+    return jnp.sqrt(dist_mat)
+
+def sym_dist_mat(xyzs: Array, box_dims: Array, periodic: bool) -> Array:
     n = xyzs.shape[0]
     dist_mat_flat = sym_dist_mat_(xyzs, box_dims, periodic)
-    dist_mat = np.zeros((n,n))
-    k = 0
-    for i in range(n):
-        for j in range(n):
-            if i < j:
-                dist_mat[i,j] = dist_mat_flat[k]
-                dist_mat[j,i] = dist_mat_flat[k]
-                k += 1
+    i, j = unravel_upper_triangle_index(n)
+
+    def fill_dist_mat(k: int, dist_mat: Array) -> Array:
+        i_k = i[k]
+        j_k = j[k]
+        return lax.cond(i_k < j_k,
+                        lambda dist_mat: dist_mat.at[i_k, j_k].set(dist_mat_flat[k]),
+                        lambda dist_mat: dist_mat.at[j_k, i_k].set(dist_mat_flat[k]),
+                        operand=dist_mat)
+
+    dist_mat = lax.fori_loop(0, n * (n - 1) // 2, fill_dist_mat, jnp.zeros((n, n)))
     return dist_mat
 
-@njit#(parallel=True)
-def dist_mat_(xyz1, xyz2, box_dims, periodic):
+def dist_mat_(xyz1: Array, xyz2: Array, box_dims: Array, periodic: bool) -> Array:
+    n1 = xyz1.shape[0]
+    n2 = xyz2.shape[0]
+    i, j = unravel_index(n1, n2)
+
+    def compute_dist(k: int) -> Array:
+        i_k = i[k]
+        j_k = j[k]
+        dr = jnp.abs(xyz1[i_k] - xyz2[j_k])
+        def apply_periodic_correction(args: Tuple[Array, Array]) -> Array:
+            dr, box_dims = args
+            return lax.cond(dr > box_dims * 0.5, (dr, box_dims), lambda args: args[0] - args[1], dr, operand=None)
+        dr = lax.cond(periodic, (dr, box_dims), apply_periodic_correction, dr, operand=None)
+        return jnp.sum(dr ** 2)
+
+    dist_mat = lax.map(compute_dist, jnp.arange(n1 * n2))
+    return jnp.sqrt(dist_mat)
+
+def dist_mat(xyz1: Array, xyz2: Array, box_dims: Array, periodic: bool) -> Array:
+    dist_flat = dist_mat_(xyz1, xyz2, box_dims, periodic)
+    n1 = xyz1.shape[0]
+    n2 = xyz2.shape[0]
+    return dist_flat.reshape(n1, n2)
+
+def dist_mat_parallel_(xyz1: Array, xyz2: Array, box_dims: Array, periodic: bool) -> Array:
     n1 = xyz1.shape[0]
     n2 = xyz2.shape[0]
     ndim = xyz1.shape[1]
-    dist_mat = np.zeros((n1 * n2))
     i, j = unravel_index(n1, n2)
-    for k in prange(n1 * n2):
-        dr = np.abs(xyz1[i[k]] - xyz2[j[k]])
+
+    def compute_dist(k: int) -> Array:
+        i_k = i[k]
+        j_k = j[k]
+        dr = jnp.abs(xyz1[i_k] - xyz2[j_k])
         for ri in range(ndim):
-            if periodic[ri] == True:
-                while (dr[ri] >  (box_dims[ri]*0.5)):
-                    dr[ri] -= box_dims[ri]
-            dist_mat[k] += np.square(dr[ri])
-    return np.sqrt(dist_mat)
+            if periodic[ri]:
+                dr = lax.cond(dr[ri] > box_dims[ri] * 0.5, (dr, box_dims[ri]), lambda args: args[0] - args[1], dr, operand=None)
+        return jnp.sum(dr ** 2)
 
-@njit
-def dist_mat(xyz1, xyz2, box_dims, periodic):
+    dist_mat = lax.map(compute_dist, jnp.arange(n1 * n2))
+    return jnp.sqrt(dist_mat)
+
+def dist_mat_parallel(xyz1: Array, xyz2: Array, box_dims: Array, periodic: bool) -> Array:
+    dist_flat = dist_mat_parallel_(xyz1, xyz2, box_dims, periodic)
     n1 = xyz1.shape[0]
     n2 = xyz2.shape[0]
-    return dist_mat_(xyz1, xyz2, box_dims, periodic).reshape(n1, n2)
+    return dist_flat.reshape(n1, n2)
 
-@njit(parallel=True)
-def dist_mat_parallel_(xyz1, xyz2, box_dims, periodic):
-    n1 = xyz1.shape[0]
-    n2 = xyz2.shape[0]
-    ndim = xyz1.shape[1]
-    dist_mat = np.zeros((n1 * n2))
-    i, j = unravel_index(n1, n2)
-    for k in prange(n1 * n2):
-        for ri in prange(ndim):
-            dr = np.abs(xyz1[i[k],ri] - xyz2[j[k],ri])
-            if periodic[ri] == True:
-                if (dr >  (box_dims[ri]*0.5)):
-                    dr -= box_dims[ri]
-            dist_mat[k] += np.square(dr)
-    return np.sqrt(dist_mat)
-
-@njit
-def dist_mat_parallel(xyz1, xyz2, box_dims, periodic):
-    n1 = xyz1.shape[0]
-    n2 = xyz2.shape[0]
-    return dist_mat_parallel_(xyz1, xyz2, box_dims, periodic).reshape(n1, n2)
-
-@njit
-def dist_vec(xyz, xyzs, box_dims, periodic):
-    n = len(xyzs)
-    ndim = len(xyz)
-    dist_vec = np.zeros((n))
-    for i in prange(n):
-        for ri in prange(ndim):
-            dr = np.abs(xyzs[i,ri] - xyz[ri])
-            if periodic[ri] == True:
-                while (dr >  (box_dims[ri]*0.5)):
-                    dr -= box_dims[ri]
-            dist_vec[i] += np.square(dr)
-    return np.sqrt(dist_vec)
-
-@njit
-def disp(xyz1, xyz2, box_dims, periodic):
-    d = len(xyz1)
-    disp = np.zeros((d))
-    for ri in range(d):
-        dr = xyz1[ri] - xyz2[ri]
-        if periodic[ri] == True:
-            while (dr >  ( box_dims[ri]*0.5)):
-                dr -= box_dims[ri]
-            while (dr <= (-box_dims[ri]*0.5)):
-                dr += box_dims[ri]
-        disp[ri] = dr
-    return disp
-
-@njit
-def disp_vec(xyz, xyzs, box_dims, periodic):
+def dist_vec(xyz: Array, xyzs: Array, box_dims: Array, periodic: bool) -> Array:
+    ndim = xyz.shape[0]
     n = xyzs.shape[0]
-    d = xyzs.shape[1]
-    disps = np.empty((n,d))
-    for i in range(n):
-        disps[i] = disp(xyz, xyzs[i], box_dims, periodic)
-    return disps        
 
-@njit
-def gaussian_transform_vec(array, gamma):
-    g_array = np.empty_like(array)
-    n = array.shape[0]
-    for i in range(n):
-        g_array[i] = np.exp(-gamma * np.square(array[i]))
-    return g_array
+    def compute_dist(i: int) -> Array:
+        dr = jnp.abs(xyzs[i] - xyz)
+        for ri in range(ndim):
+            if periodic[ri]:
+                dr = lax.cond(dr[ri] > box_dims[ri] * 0.5, dr, lambda dr: dr - box_dims[ri], dr, operand=None)
+        return jnp.sum(dr ** 2)
 
-@njit(parallel=True)
-def gaussian_transform_vec_parallel(array, gamma):
-    g_array = np.empty_like(array)
-    n = array.shape[0]
-    for i in prange(n):
-        g_array[i] = np.exp(-gamma * np.square(array[i]))
-    return g_array
+    dist_vec = vmap(compute_dist)(jnp.arange(n))
+    return jnp.sqrt(dist_vec)
 
-@njit(parallel=True)
-def gaussian_transform_mat_(array, gamma):
-    g_array = np.empty_like(array)
-    n = array.shape[0]
-    for i in prange(n):
-        g_array[i] = np.exp(-gamma * np.square(array[i]))
-    return g_array
+def disp(xyz1: Array, xyz2: Array, box_dims: Array, periodic: bool) -> Array:
+    def apply_periodic_correction(args: Tuple[Array, Array]) -> Array:
+        dr, dim = args
+        return lax.cond(dr > box_dims[dim] * 0.5, (dr, box_dims[dim]), lambda args: args[0] - args[1], dr, operand=None)
 
-@njit
-def gaussian_transform_mat(mat, gamma):
+    dr = xyz1 - xyz2
+    dr = lax.cond(periodic, (dr, jnp.arange(3)), apply_periodic_correction, dr, operand=None)
+    return dr
+
+def disp_vec(xyz: Array, xyzs: Array, box_dims: Array, periodic: bool) -> Array:
+    def disp_single(xyz1: Array) -> Array:
+        return disp(xyz, xyz1, box_dims, periodic)
+    return vmap(disp_single)(xyzs)
+
+def gaussian_transform_vec(array: Array, gamma: float) -> Array:
+    return jnp.exp(-gamma * jnp.square(array))
+
+def gaussian_transform_vec_parallel(array: Array, gamma: float) -> Array:
+    return vmap(lambda x: jnp.exp(-gamma * jnp.square(x)))(array)
+
+def gaussian_transform_mat_(array: Array, gamma: float) -> Array:
+    return jnp.exp(-gamma * jnp.square(array))
+
+def gaussian_transform_mat(mat: Array, gamma: float) -> Array:
     return gaussian_transform_mat_(mat.ravel(), gamma).reshape(mat.shape)
 
-@njit
-def decision_function(vec, weights, intercept):
-    n = vec.shape[0]
-    decision = 0.
-    for i in range(n):
-        decision += weights[i] * vec[i]
-    return decision + intercept
+def decision_function(vec: Array, weights: Array, intercept: float) -> Array:
+    return jnp.dot(weights, vec) + intercept
 
-@njit
-def decision_function_mat(mat, weights, intercept):
-    n = mat.shape[0]
-    decisions = np.zeros((n))
-    for i in range(n):
-        decisions[i] = decision_function(mat[i], weights, intercept)
-    return decisions
+def decision_function_mat(mat: Array, weights: Array, intercept: float) -> Array:
+    return jnp.dot(mat, weights) + intercept
 
-@njit
-def predict(vec, weights, intercept):
-    return np.sign(decision_function(vec, weights, intercept))
+def predict(vec: Array, weights: Array, intercept: float) -> Array:
+    return jnp.sign(decision_function(vec, weights, intercept))
 
-@njit
-def predict_mat(vec, weights, intercept):
-    return np.sign(decision_function_mat(vec, weights, intercept))
+def predict_mat(mat: Array, weights: Array, intercept: float) -> Array:
+    return jnp.sign(decision_function_mat(mat, weights, intercept))
 
-@njit
-def pbc_center(xyzs, box_dims):
-    n = xyzs.shape[0]
-    d = xyzs.shape[1]
-    center = np.empty((d))
-    for ri in prange(d):
-        rmax = np.max(xyzs[:,ri])
-        xi = 0.
-        zeta = 0.
-        for j in prange(n):
-            thetai = 2.*np.pi*xyzs[j,ri]/rmax
-            xi += np.cos(thetai)
-            zeta += np.sin(thetai)
-        xi /= -n
-        zeta /= -n
-        theta = np.arctan2(zeta,xi) + np.pi
-        center[ri] = theta * rmax / (2.*np.pi)
+def pbc_center(xyzs: Array, box_dims: Array) -> Array:
+    rmax = jnp.max(xyzs)
+    thetai = 2. * jnp.pi * xyzs / rmax
+    xi = jnp.mean(jnp.cos(thetai))
+    zeta = jnp.mean(jnp.sin(thetai))
+    theta = jnp.arctan2(zeta, xi) + jnp.pi
+    center = theta * rmax / (2. * jnp.pi)
     return center
 
-@njit
-def calculate_lipid_coms(lipids_xyz, atom_ids_per_lipid, box_dims):
-    n_lipids = len(atom_ids_per_lipid)
-    coms = np.empty((n_lipids, 3))
-    for i in range(n_lipids):
-        coms[i] = pbc_center(lipids_xyz[atom_ids_per_lipid[i]], box_dims)
+def calculate_lipid_coms(lipids_xyz: Array, atom_ids_per_lipid: Array, box_dims: Array) -> Array:
+    coms = vmap(lambda atom_ids: pbc_center(lipids_xyz[atom_ids], box_dims))(atom_ids_per_lipid)
     return coms
 
-@njit
-def update_disps(disps, step, box_dims, periodic):
-    n = disps.shape[0]
-    d = 3
-    for i in range(n):
-        for j in range(d):
-            disps[i,j] += step[j]
-            if periodic[j] == True:
-                if (disps[i,j] >  ( box_dims[j]*0.5)):
-                    disps[i,j] -= box_dims[j]
-                if (disps[i,j] <= (-box_dims[j]*0.5)):
-                    disps[i,j] += box_dims[j]
+def update_disps(disps: Array, step: Array, box_dims: Array, periodic: bool) -> Array:
+    def apply_periodic_correction(args: Tuple[Array, int]) -> Array:
+        disps_j, dim = args
+        return lax.cond(disps_j > box_dims[dim] * 0.5, disps_j - box_dims[dim], disps_j, disps_j, lambda x: x)
+    
+    disps = disps + step
+    disps = lax.cond(periodic, (disps, jnp.arange(3)), apply_periodic_correction, disps, operand=None)
     return disps
 
-@njit
-def gradient(disps, gxdists, gamma, weights):
-    n = disps.shape[0]
-    del_F = np.zeros((3))
-    factor = -2.*gamma
-    for i in range(n):
-        for j in range(3):
-            del_F[j] += factor * weights[i] * disps[i,j] * gxdists[i]
+def gradient(disps: Array, gxdists: Array, gamma: float, weights: Array) -> Array:
+    factor = -2. * gamma
+    del_F = jnp.sum(factor * weights * disps * gxdists, axis=0)
     return del_F
 
-@njit
-def gradient_descent(point_, support_points, box_dims, periodic, weights, intercept, gamma, learning_rate, max_iter):
-    point = point_.copy()
-    disps = disp_vec(point, support_points, box_dims, periodic)
-    gxdists = gaussian_transform_vec(vec_mags(disps), gamma)
-    d = decision_function(gxdists, weights, intercept)
-    sign = nsign_int(d)
-    step = -learning_rate * nsign(d) * vec_norm(gradient(disps, gxdists, gamma, weights))
-    for i in range(max_iter):
+def gradient_descent(point_: Array, support_points: Array, box_dims: Array, periodic: bool, weights: Array, intercept: float, gamma: float, learning_rate: float, max_iter: int) -> Tuple[Array, Array, Array]:
+    # Body function for while loop
+    def body_fn(vals: Tuple[Array, Array, Array, float, Array, int]) -> Tuple[Array, Array, Array, float, Array, int]:
+        point, disps, gxdists, sign, step, max_iter = vals
+        step = -learning_rate * jnp.sign(d) * vec_norm(gradient(disps, gxdists, gamma, weights))
         point += step
         disps = update_disps(disps, step, box_dims, periodic)
         gxdists = gaussian_transform_vec(vec_mags(disps), gamma)
         d = decision_function(gxdists, weights, intercept)
-        newsign = nsign_int(d)
-        if newsign != sign:
-            step *= -1.
-            break
-        step = -learning_rate * nsign(d) * vec_norm(gradient(disps, gxdists, gamma, weights))
+        return point, disps, gxdists, jnp.sign(d), step, max_iter - 1
+
+    # Initialization
+    point = jnp.array(point_, copy=True)
+    disps = disp_vec(point, support_points, box_dims, periodic)
+    gxdists = gaussian_transform_vec(vec_mags(disps), gamma)
+    d = decision_function(gxdists, weights, intercept)
+    sign = jnp.sign(d)
+    step = -learning_rate * jnp.sign(d) * vec_norm(gradient(disps, gxdists, gamma, weights))
+
+    # Iterative optimization
+    _, disps, _, _, _, _ = lax.while_loop(cond_fn, body_fn, (point, disps, gxdists, sign, step, max_iter))
     return point, vec_norm(step), disps
 
-@njit
-def coordinate_descent(point_, step, disps, box_dims, periodic, weights, intercept, gamma, step_init, max_iter, tol):
-    point = point_.copy()
+def coordinate_descent(point_: Array, step: float, disps: Array, box_dims: Array, periodic: bool, weights: Array, intercept: float, gamma: float, step_init: float, max_iter: int, tol: float) -> Array:
+    # Body function for while loop
+    def body_fn(vals: Tuple[Array, float, int]) -> Tuple[Array, float, int]:
+        point, s, max_iter = vals
+        point += step
+        disps = update_disps(disps, step, box_dims, periodic)
+        gxdists = gaussian_transform_vec(vec_mags(disps), gamma)
+        d = decision_function(gxdists, weights, intercept)
+        news = jnp.sign(d)
+        step = step * (news != s) * -0.5 + step * (news == s)
+        return point, news, max_iter - 1
+
+    # Initialization
+    point = jnp.array(point_, copy=True)
     step = step_init * step
     gxdists = gaussian_transform_vec(vec_mags(disps), gamma)
     d = decision_function(gxdists, weights, intercept)
-    s = nsign_int(d)
-    for i in range(max_iter):
-        point += step
-        disps = update_disps(disps, step, box_dims, periodic)
-        gxdists = gaussian_transform_vec(vec_mags(disps), gamma)
-        d = decision_function(gxdists, weights, intercept)
-        news = nsign_int(d)
-        if news != s:
-            step *= -0.5
-        if np.abs(d) < tol:
-            break
-        s = news
+    s = jnp.sign(d)
+
+    # Iterative optimization
+    point, _, _ = lax.while_loop(cond_fn, body_fn, (point, s, max_iter))
     return point
-    
-@njit(parallel=True)
-def descend_to_boundary(points, support_points, box_dims, periodic, weights, intercept, gamma, learning_rate, max_iter, tol):
-    n = points.shape[0]
-    d = points.shape[1]
-    bounds = np.empty((n, d))
-    normal_vectors = np.empty((n, d))
-    for i in prange(n):
-        approx_bound, normal_vectors[i], disps  = gradient_descent(
+
+def descend_to_boundary(points: Array, support_points: Array, box_dims: Array, periodic: bool, weights: Array, intercept: float, gamma: float, learning_rate: float, max_iter: int, tol: float) -> Tuple[Array, Array]:
+    # Body function for loop
+    def body_fn(i: int, bounds_normal: Array) -> Array:
+        approx_bound, _, disps = gradient_descent(
             points[i], support_points, 
             box_dims, periodic, weights, intercept, gamma, 
             learning_rate, max_iter)
-        bounds[i] = coordinate_descent(
+        final_bound = coordinate_descent(
             approx_bound, normal_vectors[i], disps, 
             box_dims, periodic, weights, intercept, gamma, 
             learning_rate, max_iter, tol)
+        return jax.at[i, :].set(bounds_normal, final_bound)
+
+    # Initialization
+    bounds = jnp.zeros((points.shape[0], points.shape[1]))
+    normal_vectors = jnp.zeros_like(bounds)
+
+    # Iterative optimization
+    bounds = lax.fori_loop(0, points.shape[0], body_fn, bounds)
     return bounds, -1.*normal_vectors
 
-@njit
-def analytical_derivative(point, support_points, box_dims, periodic, gamma, weights):
-    d = point.shape[0]
-    n = support_points.shape[0]
+def analytical_derivative(point: Array, support_points: Array, box_dims: Array, periodic: bool, gamma: float, weights: Array) -> Tuple[Array, Array]:
     disps = disp_vec(point, support_points, box_dims, periodic)
     gxdists = gaussian_transform_vec(vec_mags(disps), gamma)
     grad = -2. * gamma * disps * gxdists.reshape(-1,1) * weights.reshape(-1,1)
-    hess = np.zeros((d,d))
-    for i in range(d):
-        for j in range(d):
-            if i < j:
-                hess[i,j] = np.sum(-2. * gamma * disps[:,j] * grad[:,i])
-    for i in range(d):
-        hess[i,i] = np.sum(-2. * gamma * (1. - 2. * gamma * np.square(disps[:,i])) * gxdists * weights)
-    for i in range(d):
-        for j in range(i+1,d):
-            hess[j,i] = hess[i,j]
-    return np.sum(grad,axis=0), hess
+    hess = jnp.zeros((point.shape[0], point.shape[0]))
 
-@njit
-def gaussian_curvature(grad, hess):
-    n = len(grad)
-    X = np.empty((n+1, n+1))
-    X[n,n] = 0.
-    for i in range(n):
-        for j in range(n):
-            X[i,j] = hess[i,j]
-    for i in range(n):
-        X[n,i] = grad[i]
-        X[i,n] = grad[i]
+    # Fill the Hessian matrix
+    def fill_hess(i: int, j: int, hess: Array) -> Array:
+        return jax.at[hess, (i, j)].set(-2. * gamma * jnp.sum(disps[:,j] * grad[:,i]))
+
+    hess = lax.fori_loop(0, point.shape[0], lambda i, hess: lax.fori_loop(0, point.shape[0], lambda j, hess: fill_hess(i, j, hess), hess), hess)
+    
+    for i in range(point.shape[0]):
+        hess = jax.at[hess, (i, i)].set(-2. * gamma * jnp.sum((1. - 2. * gamma * jnp.square(disps[:,i])) * gxdists * weights))
+    
+    return jnp.sum(grad,axis=0), hess
+
+def gaussian_curvature(grad: Array, hess: Array) -> Array:
+    X = jnp.pad(hess, ((0,1),(0,1)))
     div = -(vec_mag(grad)**4.)
-    return np.linalg.det(X) / div   
+    return jnp.linalg.det(X) / div
 
-@njit
-def mean_curvature(grad, hess):
+def mean_curvature(grad: Array, hess: Array) -> Array:
     grad_mag = vec_mag(grad)
     div = 2. * (grad_mag**3.)
-    return ((grad @ hess @ grad.T) + (-(grad_mag**2.) * np.trace(hess))) / div
+    return ((grad @ hess @ grad.T) + (-(grad_mag**2.) * jnp.trace(hess))) / div
 
-@njit
-def curvatures(points, support_points, box_dims, periodic, gamma, weights):
-    n = points.shape[0]
-    mean_curvatures = np.zeros((n))
-    gaussian_curvatures = np.zeros((n))
-    for i in prange(n):
+def curvatures(points: Array, support_points: Array, box_dims: Array, periodic: bool, gamma: float, weights: Array) -> Array:
+    # Body function for loop
+    def body_fn(i: int, curvatures: Array) -> Array:
         grad, hess = analytical_derivative(points[i], support_points, box_dims, periodic, gamma, weights)
-        gaussian_curvatures[i] = gaussian_curvature(grad, hess)
-        mean_curvatures[i] = mean_curvature(grad, hess)
-    return gaussian_curvatures, mean_curvatures
+        gaussian_curvatures = gaussian_curvature(grad, hess)
+        mean_curvatures = mean_curvature(grad, hess)
+        return jax.at[curvatures, i].set(jnp.array([gaussian_curvatures, mean_curvatures]))
+
+    # Initialization
+    initial_curvatures = jnp.zeros((points.shape[0], 2))
+
+    # Iterative optimization
+    curvatures = lax.fori_loop(0, points.shape[0], body_fn, initial_curvatures)
+    return curvatures
 
 class Backend(object):
     def __init__(self, xyz, train_indices, atom_ids_per_lipid, box_dims, periodic, gamma, 
@@ -455,9 +397,9 @@ class Backend(object):
         train_mat = sym_dist_mat(self.train_points[frame], self.box_dims[frame], self.periodic)
         if self.autogenerate_labels:
             self._calculate_train_labels(frame, train_mat)
-        train_kernel = gaussian_transform_mat(train_mat, self.gamma)
+        train_kernel = gaussian_transform_mat(train_mat, self.gamma) #04.25.2024 change this for JAX??
         weights, intercept, support_indices = self._train_svm(train_kernel)
-        coms = calculate_lipid_coms(self.xyz[frame], self.atom_ids_per_lipid, self.box_dims[frame])
+        coms = calculate_lipid_coms(self.xyz[frame], self.atom_ids_per_lipid, self.box_dims[frame]) #04.25.2024 change below for JAX??
         bounds, normal_vectors = descend_to_boundary(coms, self.train_points[frame,support_indices], 
                     self.box_dims[frame], self.periodic, 
                     weights, intercept, self.gamma, self.learning_rate, self.max_iter, self.tol)
@@ -466,7 +408,6 @@ class Backend(object):
         mean *= self.train_labels
         return mean, gauss, normal_vectors, weights, intercept, support_indices
     
-
     def calculate_curvature(self, frames=None, stride=None):
         if (frames is None and stride is None) or (frames is not None and stride is not None):
             raise ValueError('Please supply only one of the parameters frames or stride')
