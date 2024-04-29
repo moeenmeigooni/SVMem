@@ -256,10 +256,11 @@ def pbc_center(xyzs, box_dims):
     d = xyzs.shape[1]
     center = np.empty((d))
     for ri in prange(d):
-        rmax = np.max(xyzs[:,ri])
+        rmax = np.max(xyzs[:,ri]) # box_dims[i]/2+np.mean(box_dims, axis=)/2
         xi = 0.
         zeta = 0.
         for j in prange(n):
+            print(rmax, n)
             thetai = 2.*np.pi*xyzs[j,ri]/rmax
             xi += np.cos(thetai)
             zeta += np.sin(thetai)
