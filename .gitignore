@@ -1,4 +1,6 @@
 __pycache__/
+numba_utils/__pycache__/
 test_data/
+*.pyc
 *.npy
 *.ipynb
