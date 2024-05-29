@@ -1,11 +1,13 @@
 import argparse
 import MDAnalysis as mda
+import numpy as np
+import os
 from SVMem_MDA import MembraneCurvature
 
 parser = argparse.ArgumentParser(description='')
 
 parser.add_argument('topology', help='Topology file for trajectory (e.g. psf, parm7, pdb)')
-parser.add_argument('trajectory', default=None, 
+parser.add_argument('-traj', '--trajectory', default='', 
                     help='Trajectory file or list of trajectory files (e.g. dcd, xtc)')
 parser.add_argument('-b', '--backend', default='numba', choices=['jax', 'numba'],
                     help='Backend for curvature calculations.')
@@ -28,7 +30,7 @@ args = parser.parse_args()
 top = args.topology
 traj = args.trajectory
 backend = args.backend
-memb = args.membrane_selection
+memb = args.membrane
 forcefield = args.forcefield
 periodic = args.periodic
 gamma = args.gamma
@@ -37,12 +39,21 @@ max_iter = args.max_iter
 tolerance = args.tolerance
 labels = args.labels
 
-if isinstance(traj, None):
-    u = mda.Universe(top)
-else:
-    u = mda.Universe(top, traj)
+match traj:
+    case '':
+        u = mda.Universe(top)
+    case os.path.exists(traj):
+        u = mda.Universe(top, traj)
+    case _:
+        raise FileNotFoundError(f'{traj=} is not a valid selection for traj! \
+                Please specify a valid trajectory file or don\'t set \
+                anything for a static frame.')
     
-sel = u.select_atoms(memb)
+#sel = u.select_atoms(memb)
+sel = u.select_atoms('all')
 analysis = MembraneCurvature(sel, method=backend, forcefield=forcefield,
                              periodic=periodic, gamma=gamma, learning_rate=learning_rate,
                              max_iter=max_iter, tolerance=tolerance, train_labels=labels)
+
+analysis.run()
+np.save('boundary_pts.npy', analysis.boundary_points)

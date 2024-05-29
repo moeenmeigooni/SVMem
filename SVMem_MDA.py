@@ -22,13 +22,15 @@ class MembraneCurvature(AnalysisBase):
         super().__init__(memb.universe.trajectory)
         self.u = memb.universe
         self.memb = memb
-        resids = ' '.join([str(x) for x in np.unique(self.memb.resids)])
+        #resids = ' '.join([str(x) for x in np.unique(self.memb.resids)])
         
         # Defined headgroup atom selections by forcefield
         if forcefield == 'martini':
-            head_sel = f'name GL0 PO4 and resid {resids}'
+            #head_sel = f'name GL0 PO4 and resid {resids}'
+            head_sel = f'name GL0 PO4'
         elif forcefield == 'charmm':
-            head_sel = f'name OG12 P and resid {resids}'
+            #head_sel = f'name OG12 P and resid {resids}'
+            head_sel = f'name OG12 P'
         else:
             head_sel = ''
             

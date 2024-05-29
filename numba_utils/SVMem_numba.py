@@ -260,7 +260,7 @@ def pbc_center(xyzs, box_dims):
         xi = 0.
         zeta = 0.
         for j in prange(n):
-            print(rmax, n)
+            #print(rmax, n)
             thetai = 2.*np.pi*xyzs[j,ri]/rmax
             xi += np.cos(thetai)
             zeta += np.sin(thetai)
