@@ -470,4 +470,4 @@ class Backend(object):
         
         mean *= -1.
         mean *= self.train_labels
-        return mean, gauss, normal_vectors, weights, intercept, support_indices
+        return mean, gauss, bounds, normal_vectors, weights, intercept, support_indices

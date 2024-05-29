@@ -7,7 +7,7 @@ parser = argparse.ArgumentParser(description='')
 parser.add_argument('topology', help='Topology file for trajectory (e.g. psf, parm7, pdb)')
 parser.add_argument('trajectory', default=None, 
                     help='Trajectory file or list of trajectory files (e.g. dcd, xtc)')
-parser.add_argument('-b', '--backend', default='numba', choices=['jax', 'numba', 'numpy'],
+parser.add_argument('-b', '--backend', default='numba', choices=['jax', 'numba'],
                     help='Backend for curvature calculations.')
 parser.add_argument('-m', '--membrane', default='segid MEMB', help='Atom selection text\
     that adheres to the MDAnalysis conventions for selecting your whole membrane.')

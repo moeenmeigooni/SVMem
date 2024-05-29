@@ -59,22 +59,25 @@ class MembraneCurvature(AnalysisBase):
         self.support_indices_list = []
         self.mean_curvature = np.empty((self.n_frames, self.n_train_points))
         self.gaussian_curvature = np.empty_like(self.mean_curvature)
+        self.boundary_points = np.empty((self.n_frames, self.n_train_points, 3))
         self.normal_vectors = np.empty((self.n_frames, self.n_train_points, 3))
+        
 
     def _single_frame(self):
         """
         Calling the specified backend, compute the curvature for each frame of simulation.
         """
-        fr = self.u.trajectory.frame
-        mean, gaussian, normals, weights, intercept, support_indices = self.backend.calculate_curvature(self.train_points.positions,
-                                                                                                        self.u.dimensions[:3],
-                                                                                                        self.memb)
-        self.mean_curvature[fr] = mean
-        self.gaussian_curvature[fr] = gaussian
-        self.normal_vectors[fr] = normals
-        self.weights_list.append(weights)
-        self.intercept_list.append(intercept)
-        self.support_indices_list.append(support_indices)
+        fr = self._frame_index
+        result = self.backend.calculate_curvature(self.train_points.positions, 
+                                                  self.u.dimensions[:3], 
+                                                  self.memb)
+        self.mean_curvature[fr] = result[0]
+        self.gaussian_curvature[fr] = result[1]
+        self.boundary_points[fr] = result[2]
+        self.normal_vectors[fr] = result[3]
+        self.weights_list.append(result[4])
+        self.intercept_list.append(result[5])
+        self.support_indices_list.append(result[6])
         
     def _conclude(self):
         self.memb.positions += self.center_shift
